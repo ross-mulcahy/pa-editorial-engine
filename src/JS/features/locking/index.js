@@ -155,21 +155,20 @@ export function initNuclearLocking() {
 			return;
 		}
 
-		// Check native WP post lock (another user editing).
-		const isWPLocked = editor.isPostLocked();
-		const lockDetails = editor.getPostLockUser?.() || {};
-		const wpLockerName = lockDetails?.name || lockDetails?.nickname || '';
+		// The nuclear lock modal only fires for the Editorial Stop
+		// (custom "locked" post status). Native WP soft locks (another
+		// user editing via real-time collaboration) have their own UI
+		// and should NOT trigger our modal.
 
 		// Check editorial stop — from initial page load or heartbeat.
 		const postStatus = editor.getEditedPostAttribute( 'status' );
 		const isEditorialLocked =
-			( postStatus === lockedStatus && ! canToggleStop ) ||
-			heartbeatLocked;
+			postStatus === lockedStatus || heartbeatLocked;
 
-		const shouldLock = isWPLocked || isEditorialLocked;
-		const lockerName = isEditorialLocked
-			? heartbeatLockerName || stopByName
-			: wpLockerName;
+		// Editors/admins can toggle the stop — don't lock them out.
+		// They see the Editorial Stop panel with the unlock button instead.
+		const shouldLock = isEditorialLocked && ! canToggleStop;
+		const lockerName = heartbeatLockerName || stopByName;
 
 		if ( shouldLock && ! lockApplied ) {
 			lockApplied = true;
