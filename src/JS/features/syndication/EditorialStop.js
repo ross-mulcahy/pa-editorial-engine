@@ -3,7 +3,8 @@
  *
  * When active, the post is frozen: no content, title, or status changes
  * are allowed. The editor is made fully read-only by disabling
- * contenteditable, locking the post, and intercepting keyboard saves.
+ * contenteditable (including inside the editor iframe), locking the
+ * post save, and intercepting keyboard saves.
  */
 
 import { useEntityProp } from '@wordpress/core-data';
@@ -14,29 +15,54 @@ import { __ } from '@wordpress/i18n';
 import { useEffect, useRef } from '@wordpress/element';
 
 /**
+ * Get the editor iframe document (WP 7.0+ renders blocks in an iframe).
+ * Falls back to the main document if no iframe is found.
+ *
+ * @return {Document} The document containing the editor content.
+ */
+function getEditorDocument() {
+	const iframe = document.querySelector( 'iframe[name="editor-canvas"]' );
+	if ( iframe?.contentDocument ) {
+		return iframe.contentDocument;
+	}
+	return document;
+}
+
+/**
  * Disable or re-enable all contenteditable elements in the editor.
  *
  * @param {boolean} frozen Whether the editor should be frozen.
  */
 function setEditorFrozen( frozen ) {
-	// Title field.
+	const editorDoc = getEditorDocument();
+
+	// Disable all contenteditable elements inside the editor (iframe or main doc).
+	const editables = editorDoc.querySelectorAll( '[contenteditable]' );
+	editables.forEach( ( el ) => {
+		if ( frozen ) {
+			el.setAttribute( 'contenteditable', 'false' );
+			el.dataset.paWasFrozen = 'true';
+		} else if ( el.dataset.paWasFrozen ) {
+			el.setAttribute( 'contenteditable', 'true' );
+			delete el.dataset.paWasFrozen;
+		}
+	} );
+
+	// Also cover the title in the parent document (may be outside iframe).
 	const titleEl = document.querySelector(
 		'.editor-post-title__input, .wp-block-post-title'
 	);
 	if ( titleEl ) {
-		titleEl.contentEditable = frozen ? 'false' : 'true';
-		titleEl.style.pointerEvents = frozen ? 'none' : '';
+		if ( frozen ) {
+			titleEl.setAttribute( 'contenteditable', 'false' );
+			titleEl.style.pointerEvents = 'none';
+		} else {
+			titleEl.setAttribute( 'contenteditable', 'true' );
+			titleEl.style.pointerEvents = '';
+		}
 	}
 
-	// Block editor content area — disable all editable regions.
-	const editables = document.querySelectorAll(
-		'.editor-styles-wrapper [contenteditable="true"]'
-	);
-	editables.forEach( ( el ) => {
-		el.contentEditable = frozen ? 'false' : 'true';
-	} );
-
-	// Visual lockdown classes.
+	// Grey out the editor visually.
 	const lockTargets = [
 		'.editor-styles-wrapper',
 		'.editor-header',
@@ -48,6 +74,13 @@ function setEditorFrozen( frozen ) {
 			el.classList.toggle( 'pa-editorial-stopped', frozen );
 		}
 	} );
+
+	// Also apply visual styles inside the iframe body.
+	if ( editorDoc !== document && editorDoc.body ) {
+		editorDoc.body.style.pointerEvents = frozen ? 'none' : '';
+		editorDoc.body.style.userSelect = frozen ? 'none' : '';
+		editorDoc.body.style.opacity = frozen ? '0.5' : '';
+	}
 }
 
 /**
@@ -78,9 +111,21 @@ export function EditorialStop() {
 			lockPostSaving( 'pa-editorial-stop' );
 			document.addEventListener( 'keydown', blockSave, true );
 
-			// Small delay to let the editor render before freezing.
-			const timer = setTimeout( () => setEditorFrozen( true ), 100 );
-			return () => clearTimeout( timer );
+			// Block keyboard input inside the iframe too.
+			const editorDoc = getEditorDocument();
+			if ( editorDoc !== document ) {
+				editorDoc.addEventListener( 'keydown', blockSave, true );
+			}
+
+			// Delay to let the editor render before freezing.
+			const timer = setTimeout( () => setEditorFrozen( true ), 200 );
+			return () => {
+				clearTimeout( timer );
+				document.removeEventListener( 'keydown', blockSave, true );
+				if ( editorDoc !== document ) {
+					editorDoc.removeEventListener( 'keydown', blockSave, true );
+				}
+			};
 		}
 
 		unlockPostSaving( 'pa-editorial-stop' );
@@ -88,20 +133,23 @@ export function EditorialStop() {
 		document.removeEventListener( 'keydown', blockSave, true );
 	}, [ stopActive, lockPostSaving, unlockPostSaving ] );
 
-	// Re-freeze on any DOM changes (new blocks added via undo, etc.).
+	// Re-freeze when DOM changes (blocks re-rendered, undo, etc.).
 	useEffect( () => {
 		if ( ! stopActive ) {
 			return;
 		}
 
+		const editorDoc = getEditorDocument();
 		// eslint-disable-next-line no-undef -- MutationObserver is a browser global.
 		const observer = new MutationObserver( () => {
 			setEditorFrozen( true );
 		} );
 
-		const wrapper = document.querySelector( '.editor-styles-wrapper' );
-		if ( wrapper ) {
-			observer.observe( wrapper, {
+		const target =
+			editorDoc.querySelector( '.editor-styles-wrapper' ) ||
+			editorDoc.body;
+		if ( target ) {
+			observer.observe( target, {
 				childList: true,
 				subtree: true,
 				attributes: true,
