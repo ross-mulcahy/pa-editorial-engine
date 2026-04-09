@@ -23,7 +23,7 @@
 		},
 		{
 			"step": "runPHP",
-			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'pa_engine_settings', array( 'locking_enabled' => true, 'cloning_enabled' => true, 'syndication_enabled' => true, 'global_priority_offset' => 10 ) ); echo 'PA Editorial Engine settings initialized.';"
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'pa_engine_settings', array( 'locking_enabled' => true, 'cloning_enabled' => true, 'syndication_enabled' => true, 'global_priority_offset' => 10 ) ); echo 'Settings initialized.';"
 		},
 		{
 			"step": "setSiteOptions",
