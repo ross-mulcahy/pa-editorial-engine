@@ -9,17 +9,16 @@
 	},
 	"steps": [
 		{
-			"step": "activatePlugin",
-			"pluginPath": "pa-editorial-engine/pa-editorial-engine.php"
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "url",
+				"url": "https://github.com/ross-mulcahy/pa-editorial-engine/archive/refs/heads/main.zip"
+			}
 		},
 		{
 			"step": "login",
 			"username": "admin",
 			"password": "password"
-		},
-		{
-			"step": "runPHP",
-			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'pa_engine_settings', array( 'locking_enabled' => true, 'cloning_enabled' => true, 'syndication_enabled' => true, 'global_priority_offset' => 10 ) ); echo 'Settings initialized.';"
 		},
 		{
 			"step": "setSiteOptions",
