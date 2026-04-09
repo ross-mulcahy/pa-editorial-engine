@@ -2,16 +2,15 @@
  * Editorial Stop — full content freeze.
  *
  * When active, the post is frozen: no content, title, or status changes
- * are allowed. Uses iframe body overlay + pointer-events to block all
- * interaction, lockPostSaving to disable the save button, and server-side
- * REST blocking as the final safety net.
+ * are allowed. Only users with edit_others_posts (editors+) can toggle
+ * the stop. The name of the user who activated it is displayed.
  */
 
 import { useEntityProp } from '@wordpress/core-data';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { PluginDocumentSettingPanel } from '@wordpress/editor';
 import { ToggleControl, Notice } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { useEffect, useRef } from '@wordpress/element';
 
 const OVERLAY_ID = 'pa-editorial-stop-overlay';
@@ -27,11 +26,7 @@ function getEditorIframeDoc() {
 }
 
 /**
- * Apply or remove the content freeze.
- *
- * Instead of toggling contenteditable on individual elements (which
- * triggers infinite MutationObserver loops), we place a transparent
- * overlay div over the entire iframe body that blocks all interaction.
+ * Apply or remove the content freeze overlay.
  *
  * @param {boolean} frozen Whether the editor should be frozen.
  */
@@ -42,7 +37,6 @@ function setEditorFrozen( frozen ) {
 		let overlay = iframeDoc.getElementById( OVERLAY_ID );
 
 		if ( frozen && ! overlay ) {
-			// Create a full-screen overlay inside the iframe that blocks clicks/typing.
 			overlay = iframeDoc.createElement( 'div' );
 			overlay.id = OVERLAY_ID;
 			overlay.style.cssText = [
@@ -60,7 +54,7 @@ function setEditorFrozen( frozen ) {
 		}
 	}
 
-	// Title is in the parent document — disable it directly.
+	// Title is in the parent document.
 	const titleEl = document.querySelector(
 		'.editor-post-title__input, .wp-block-post-title'
 	);
@@ -74,7 +68,7 @@ function setEditorFrozen( frozen ) {
 		}
 	}
 
-	// Grey out the header and sidebar in the parent document.
+	// Grey out header and sidebar.
 	[ '.editor-header', '.interface-interface-skeleton__sidebar' ].forEach(
 		( selector ) => {
 			const el = document.querySelector( selector );
@@ -107,19 +101,21 @@ export function EditorialStop() {
 	);
 	const prevSaving = useRef( false );
 
+	const config = window.paEditorialSyndication || {};
+	const canToggle = config.canToggleStop;
+	const stopByName = config.stopByName;
+
 	// Lock/unlock the editor when stop state changes.
 	useEffect( () => {
 		if ( stopActive ) {
 			lockPostSaving( 'pa-editorial-stop' );
 			document.addEventListener( 'keydown', blockSave, true );
 
-			// Also block keyboard in the iframe.
 			const iframeDoc = getEditorIframeDoc();
 			if ( iframeDoc ) {
 				iframeDoc.addEventListener( 'keydown', blockSave, true );
 			}
 
-			// Delay slightly to let the iframe render.
 			const timer = setTimeout( () => setEditorFrozen( true ), 300 );
 			return () => {
 				clearTimeout( timer );
@@ -150,8 +146,29 @@ export function EditorialStop() {
 	}, [ isSavingPost, stopActive, createErrorNotice ] );
 
 	const handleToggle = ( value ) => {
-		setMeta( { ...meta, _pa_editorial_stop: value } );
+		setMeta( {
+			...meta,
+			_pa_editorial_stop: value,
+			// Store who activated it; clear when deactivated.
+			_pa_editorial_stop_by: value ? 0 : 0, // Server will set via current user.
+		} );
 	};
+
+	// Build the frozen notice message.
+	let frozenMessage = __(
+		'This post is frozen. Content changes are blocked until the stop is removed.',
+		'pa-editorial-engine'
+	);
+	if ( stopByName ) {
+		frozenMessage = sprintf(
+			/* translators: %s: display name of the editor who activated the stop */
+			__(
+				'Signed off by %s. Content changes are blocked until the stop is removed.',
+				'pa-editorial-engine'
+			),
+			stopByName
+		);
+	}
 
 	return (
 		<PluginDocumentSettingPanel
@@ -161,29 +178,43 @@ export function EditorialStop() {
 		>
 			{ stopActive && (
 				<Notice status="warning" isDismissible={ false }>
-					{ __(
-						'This post is frozen. Content changes are blocked until the stop is removed.',
-						'pa-editorial-engine'
-					) }
+					{ frozenMessage }
 				</Notice>
 			) }
-			<ToggleControl
-				__nextHasNoMarginBottom
-				label={ __( 'Activate Editorial Stop', 'pa-editorial-engine' ) }
-				help={
-					stopActive
+			{ canToggle ? (
+				<ToggleControl
+					__nextHasNoMarginBottom
+					label={ __(
+						'Activate Editorial Stop',
+						'pa-editorial-engine'
+					) }
+					help={
+						stopActive
+							? __(
+									'Post is signed off. All changes are blocked.',
+									'pa-editorial-engine'
+							  )
+							: __(
+									'Enable to freeze this post after sign-off.',
+									'pa-editorial-engine'
+							  )
+					}
+					checked={ stopActive }
+					onChange={ handleToggle }
+				/>
+			) : (
+				<p>
+					{ stopActive
 						? __(
-								'Post is signed off. All changes are blocked.',
+								'Only editors can remove the Editorial Stop.',
 								'pa-editorial-engine'
 						  )
 						: __(
-								'Enable to freeze this post after sign-off.',
+								'Only editors can activate the Editorial Stop.',
 								'pa-editorial-engine'
-						  )
-				}
-				checked={ stopActive }
-				onChange={ handleToggle }
-			/>
+						  ) }
+				</p>
+			) }
 		</PluginDocumentSettingPanel>
 	);
 }

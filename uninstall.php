@@ -18,6 +18,7 @@ wp_cache_delete( 'pa_taxonomy_map', 'pa_editorial_engine' );
 // Clean up post meta across all posts.
 delete_post_meta_by_key( '_pa_parent_story_id' );
 delete_post_meta_by_key( '_pa_editorial_stop' );
+delete_post_meta_by_key( '_pa_editorial_stop_by' );
 delete_post_meta_by_key( '_pa_is_correction' );
 delete_post_meta_by_key( '_pa_correction_note' );
 delete_post_meta_by_key( '_pa_auto_mapped_rules' );

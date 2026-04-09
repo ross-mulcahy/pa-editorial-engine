@@ -31,6 +31,10 @@ class Syndication implements FeatureInterface {
 		// Editorial Stop: block ALL content changes when stop is active.
 		\add_filter( 'rest_pre_insert_post', [ $this, 'block_stopped_post_saves' ], 5, 2 );
 
+		// Track who activates/deactivates the editorial stop.
+		\add_action( 'updated_post_meta', [ $this, 'track_stop_user' ], 10, 4 );
+		\add_action( 'added_post_meta', [ $this, 'track_stop_user' ], 10, 4 );
+
 		// Correction Flags: schedule async API call on publish.
 		\add_action( 'transition_post_status', [ $this, 'handle_correction_flag' ], 10, 3 );
 
@@ -84,6 +88,30 @@ class Syndication implements FeatureInterface {
 	}
 
 	/**
+	 * Track which user activated or deactivated the editorial stop.
+	 *
+	 * Hooked to `updated_post_meta` and `added_post_meta`.
+	 *
+	 * @param int    $meta_id    Meta row ID.
+	 * @param int    $post_id    Post ID.
+	 * @param string $meta_key   Meta key.
+	 * @param mixed  $meta_value New meta value.
+	 */
+	public function track_stop_user( int $meta_id, int $post_id, string $meta_key, mixed $meta_value ): void {
+		if ( '_pa_editorial_stop' !== $meta_key ) {
+			return;
+		}
+
+		if ( $meta_value ) {
+			// Stop activated — record who did it.
+			\update_post_meta( $post_id, '_pa_editorial_stop_by', \get_current_user_id() );
+		} else {
+			// Stop deactivated — clear the record.
+			\delete_post_meta( $post_id, '_pa_editorial_stop_by' );
+		}
+	}
+
+	/**
 	 * Handle the correction flag on publish — schedule async outbound API call.
 	 *
 	 * Hooked to `transition_post_status`.
@@ -125,11 +153,26 @@ class Syndication implements FeatureInterface {
 	 * Enqueue editor assets for the syndication sidebar panels.
 	 */
 	public function enqueue_editor_assets(): void {
+		global $post;
+
+		$stop_by_name = '';
+		if ( $post ) {
+			$stop_by_id = \get_post_meta( $post->ID, '_pa_editorial_stop_by', true );
+			if ( $stop_by_id ) {
+				$user = \get_userdata( (int) $stop_by_id );
+				if ( $user ) {
+					$stop_by_name = $user->display_name;
+				}
+			}
+		}
+
 		\wp_localize_script(
 			'pa-editorial-engine-editor',
 			'paEditorialSyndication',
 			[
-				'enabled' => true,
+				'enabled'      => true,
+				'canToggleStop' => \current_user_can( 'edit_others_posts' ),
+				'stopByName'   => $stop_by_name,
 			]
 		);
 	}

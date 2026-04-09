@@ -115,7 +115,22 @@ class FeatureManager {
 					'show_in_rest'      => true,
 					'sanitize_callback' => 'rest_sanitize_boolean',
 					'auth_callback'     => function () {
-						return \current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_others_posts' );
+					},
+				]
+			);
+
+			\register_post_meta(
+				$post_type,
+				'_pa_editorial_stop_by',
+				[
+					'type'              => 'integer',
+					'default'           => 0,
+					'single'            => true,
+					'show_in_rest'      => true,
+					'sanitize_callback' => 'absint',
+					'auth_callback'     => function () {
+						return \current_user_can( 'edit_others_posts' );
 					},
 				]
 			);
