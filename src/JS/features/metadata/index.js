@@ -13,6 +13,33 @@ let previousTaxonomies = null;
 const firedRuleIds = new Set();
 
 /**
+ * Map between taxonomy slugs (used in rules) and REST base names
+ * (used by the core/editor store's getEditedPostAttribute).
+ *
+ * WordPress built-in: category → categories, post_tag → tags.
+ * Custom taxonomies typically use their slug as the REST base.
+ */
+const SLUG_TO_REST = {
+	category: 'categories',
+	post_tag: 'tags',
+};
+
+const REST_TO_SLUG = {};
+Object.entries( SLUG_TO_REST ).forEach( ( [ slug, rest ] ) => {
+	REST_TO_SLUG[ rest ] = slug;
+} );
+
+/**
+ * Convert a taxonomy slug to its REST base name.
+ *
+ * @param {string} slug Taxonomy slug (e.g. 'category').
+ * @return {string} REST base name (e.g. 'categories').
+ */
+function slugToRest( slug ) {
+	return SLUG_TO_REST[ slug ] || slug;
+}
+
+/**
  * Initialise the metadata rule evaluation subscriber.
  */
 export function initMetadataEngine() {
@@ -52,6 +79,8 @@ export function initMetadataEngine() {
 		previousTaxonomies = serialised;
 
 		// Evaluate rules against current state.
+		// Rules use taxonomy slugs, but currentTaxonomies uses slugs too
+		// (we convert back from REST names when reading).
 		const results = evaluateRules( rules, currentTaxonomies, edits );
 
 		if ( ! results.length ) {
@@ -66,9 +95,15 @@ export function initMetadataEngine() {
 
 			firedRuleIds.add( result.ruleId );
 
-			// Auto-select taxonomy terms.
+			// Convert taxonomy slug keys to REST base names for editPost().
 			if ( Object.keys( result.taxonomyUpdates ).length ) {
-				dispatch( 'core/editor' ).editPost( result.taxonomyUpdates );
+				const restUpdates = {};
+				Object.entries( result.taxonomyUpdates ).forEach(
+					( [ slug, termIds ] ) => {
+						restUpdates[ slugToRest( slug ) ] = termIds;
+					}
+				);
+				dispatch( 'core/editor' ).editPost( restUpdates );
 			}
 
 			// Show snackbar notices.
@@ -91,25 +126,24 @@ export function initMetadataEngine() {
 /**
  * Extract current taxonomy term selections from the editor state.
  *
+ * Reads using REST base names (what the editor store uses) but returns
+ * the map keyed by taxonomy slugs (what the rules use).
+ *
  * @param {Object} editor The core/editor store selectors.
  * @return {Object} Map of taxonomy slug → array of term IDs.
  */
 function getCurrentTaxonomyState( editor ) {
 	const state = {};
 
-	// Common PA Media taxonomies — extend as needed.
-	const taxonomies = [
-		'category',
-		'post_tag',
-		'topic',
-		'service',
-		'territory',
-	];
+	// REST base names used by getEditedPostAttribute().
+	const restNames = [ 'categories', 'tags', 'topic', 'service', 'territory' ];
 
-	taxonomies.forEach( ( tax ) => {
-		const terms = editor.getEditedPostAttribute( tax );
-		if ( Array.isArray( terms ) ) {
-			state[ tax ] = terms;
+	restNames.forEach( ( restName ) => {
+		const terms = editor.getEditedPostAttribute( restName );
+		if ( Array.isArray( terms ) && terms.length ) {
+			// Convert REST name back to taxonomy slug for rule matching.
+			const slug = REST_TO_SLUG[ restName ] || restName;
+			state[ slug ] = terms;
 		}
 	} );
 
