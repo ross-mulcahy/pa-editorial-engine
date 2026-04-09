@@ -9,12 +9,8 @@
 	},
 	"steps": [
 		{
-			"step": "installPlugin",
-			"pluginDirectoryName": "pa-editorial-engine",
-			"pluginZipFile": {
-				"resource": "url",
-				"url": "https://github-proxy.com/proxy/?repo=ross-mulcahy/pa-editorial-engine&branch=main"
-			}
+			"step": "activatePlugin",
+			"pluginPath": "pa-editorial-engine/pa-editorial-engine.php"
 		},
 		{
 			"step": "login",

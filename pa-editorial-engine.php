@@ -4,8 +4,8 @@
  * Plugin URI:  https://www.pa.media
  * Description: Editorial workflow engine for PA Media — locking, metadata mapping, cloning, and syndication.
  * Version:     1.0.0
- * Requires PHP: 8.4
- * Requires at least: 7.0
+ * Requires PHP: 8.0
+ * Requires at least: 6.7
  * Author:      PA Media
  * Author URI:  https://www.pa.media
  * License:     GPL-2.0-or-later
