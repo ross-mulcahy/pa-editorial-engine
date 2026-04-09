@@ -1,0 +1,35 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"preferredVersions": {
+		"wp": "latest",
+		"php": "8.3"
+	},
+	"features": {
+		"networking": true
+	},
+	"steps": [
+		{
+			"step": "installPlugin",
+			"pluginDirectoryName": "pa-editorial-engine",
+			"pluginZipFile": {
+				"resource": "url",
+				"url": "https://github-proxy.com/proxy/?repo=ross-mulcahy/pa-editorial-engine&branch=main"
+			}
+		},
+		{
+			"step": "login",
+			"username": "admin",
+			"password": "password"
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require '/wordpress/wp-load.php'; update_option( 'pa_engine_settings', array( 'locking_enabled' => true, 'cloning_enabled' => true, 'syndication_enabled' => true, 'global_priority_offset' => 10 ) ); echo 'PA Editorial Engine settings initialized.';"
+		},
+		{
+			"step": "setSiteOptions",
+			"options": {
+				"blogname": "PA Media Editorial Engine Demo"
+			}
+		}
+	]
+}

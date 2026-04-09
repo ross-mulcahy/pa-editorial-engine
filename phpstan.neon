@@ -1,0 +1,13 @@
+includes:
+    - vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+    level: 6
+    paths:
+        - src/PHP/
+        - pa-editorial-engine.php
+    excludePaths:
+        - vendor/
+    bootstrapFiles:
+        - vendor/autoload.php
+        - phpstan-constants.php

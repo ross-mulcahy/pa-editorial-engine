@@ -1,0 +1,38 @@
+/**
+ * Nuclear Lock — editor lockdown styles.
+ */
+
+.pa-nuclear-locked {
+	pointer-events: none !important;
+	user-select: none !important;
+	filter: grayscale(0.5) opacity(0.7);
+}
+
+/* Modal overrides — ensure it sits above everything and cannot be dismissed. */
+.pa-nuclear-lock-modal {
+	z-index: 1000001 !important;
+}
+
+.pa-nuclear-lock-modal__content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	text-align: center;
+	padding: 24px;
+}
+
+.pa-nuclear-lock-modal__content .components-icon {
+	fill: #cc1818;
+}
+
+.pa-nuclear-lock-modal__content p {
+	font-size: 14px;
+	line-height: 1.6;
+	margin: 0;
+}
+
+.pa-nuclear-lock-modal__hint {
+	color: #757575;
+	font-size: 13px !important;
+}
