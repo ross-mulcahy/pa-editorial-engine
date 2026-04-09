@@ -90,6 +90,12 @@ export function initNuclearLocking() {
 		return;
 	}
 
+	// Also check for editorial-stop locked status.
+	const syndicationConfig = window.paEditorialSyndication || {};
+	const lockedStatus = syndicationConfig.lockedStatus || 'locked';
+	const canToggleStop = syndicationConfig.canToggleStop;
+	const stopByName = syndicationConfig.stopByName || '';
+
 	subscribe( () => {
 		const editor = select( 'core/editor' );
 
@@ -97,17 +103,26 @@ export function initNuclearLocking() {
 			return;
 		}
 
-		const isLocked = editor.isPostLocked();
+		// Check native WP post lock (another user editing).
+		const isWPLocked = editor.isPostLocked();
 		const lockDetails = editor.getPostLockUser?.() || {};
-		const lockerName = lockDetails?.name || lockDetails?.nickname || '';
+		const wpLockerName = lockDetails?.name || lockDetails?.nickname || '';
 
-		if ( isLocked && ! lockApplied ) {
+		// Check editorial stop (locked post status) — lock for non-editors.
+		const postStatus = editor.getEditedPostAttribute( 'status' );
+		const isEditorialLocked =
+			postStatus === lockedStatus && ! canToggleStop;
+
+		const shouldLock = isWPLocked || isEditorialLocked;
+		const lockerName = isEditorialLocked ? stopByName : wpLockerName;
+
+		if ( shouldLock && ! lockApplied ) {
 			lockApplied = true;
 			toggleLockdownCSS( true );
 			toggleModal( true, lockerName );
 			disableCollaboration();
 			document.addEventListener( 'keydown', blockKeyboardSave, true );
-		} else if ( ! isLocked && lockApplied ) {
+		} else if ( ! shouldLock && lockApplied ) {
 			lockApplied = false;
 			toggleLockdownCSS( false );
 			toggleModal( false, '' );

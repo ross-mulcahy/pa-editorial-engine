@@ -36,8 +36,8 @@ class Syndication implements FeatureInterface {
 		// Editorial Stop: block ALL content changes when post is locked.
 		\add_filter( 'rest_pre_insert_post', [ $this, 'block_stopped_post_saves' ], 5, 2 );
 
-		// Expose the locked status to the REST API so the editor can set it.
-		\add_filter( 'rest_prepare_status', [ $this, 'expose_locked_status_rest' ], 10, 2 );
+		// Post list: show "Locked" indicator and locked-by info.
+		\add_filter( 'display_post_states', [ $this, 'add_locked_post_state' ], 10, 2 );
 
 		// Correction Flags: schedule async API call on publish.
 		\add_action( 'transition_post_status', [ $this, 'handle_correction_flag' ], 10, 3 );
@@ -121,14 +121,34 @@ class Syndication implements FeatureInterface {
 	}
 
 	/**
-	 * Expose the locked status in REST API responses.
+	 * Show a "Locked" indicator next to the post title in the admin post list.
 	 *
-	 * @param \WP_REST_Response $response The response object.
-	 * @param object            $status   The status object.
-	 * @return \WP_REST_Response Modified response.
+	 * @param array<string, string> $states Current post states.
+	 * @param \WP_Post              $post   Post object.
+	 * @return array<string, string> Modified states.
 	 */
-	public function expose_locked_status_rest( $response, $status ): mixed {
-		return $response;
+	public function add_locked_post_state( array $states, \WP_Post $post ): array {
+		if ( self::LOCKED_STATUS !== \get_post_status( $post->ID ) ) {
+			return $states;
+		}
+
+		$locked_by_id = \get_post_meta( $post->ID, '_pa_editorial_stop_by', true );
+		$label        = __( 'Locked', 'pa-editorial-engine' );
+
+		if ( $locked_by_id ) {
+			$user = \get_userdata( (int) $locked_by_id );
+			if ( $user ) {
+				$label = \sprintf(
+					/* translators: %s: display name of the editor who locked the post */
+					__( 'Locked by %s', 'pa-editorial-engine' ),
+					$user->display_name
+				);
+			}
+		}
+
+		$states['pa_locked'] = $label;
+
+		return $states;
 	}
 
 	/**

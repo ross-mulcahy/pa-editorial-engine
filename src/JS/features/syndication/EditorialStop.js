@@ -2,8 +2,8 @@
  * Editorial Stop — full content freeze using custom "locked" post status.
  *
  * When activated, changes the post status to "locked" and saves immediately.
- * When deactivated, restores the previous status. Only editors can toggle.
- * Shows who locked the post.
+ * Only editors+ can see the toggle. Non-editors only see the frozen notice
+ * when the post is locked.
  */
 
 import { useSelect, useDispatch } from '@wordpress/data';
@@ -155,6 +155,26 @@ export function EditorialStop() {
 		);
 	}
 
+	// Non-editors: only show the panel when locked (with notice only, no controls).
+	if ( ! canToggle ) {
+		if ( ! isLocked ) {
+			return null; // Hide the panel entirely for non-editors when not locked.
+		}
+
+		return (
+			<PluginDocumentSettingPanel
+				name="pa-editorial-stop"
+				title={ __( 'Editorial Stop', 'pa-editorial-engine' ) }
+				className="pa-editorial-stop-panel"
+			>
+				<Notice status="warning" isDismissible={ false }>
+					{ frozenMessage }
+				</Notice>
+			</PluginDocumentSettingPanel>
+		);
+	}
+
+	// Editors: full controls.
 	return (
 		<PluginDocumentSettingPanel
 			name="pa-editorial-stop"
@@ -167,28 +187,14 @@ export function EditorialStop() {
 				</Notice>
 			) }
 
-			{ canToggle && isLocked && (
+			{ isLocked ? (
 				<Button variant="secondary" onClick={ handleUnlock }>
 					{ __( 'Remove Editorial Stop', 'pa-editorial-engine' ) }
 				</Button>
-			) }
-			{ canToggle && ! isLocked && (
+			) : (
 				<Button variant="primary" onClick={ handleLock }>
 					{ __( 'Activate Editorial Stop', 'pa-editorial-engine' ) }
 				</Button>
-			) }
-			{ ! canToggle && (
-				<p>
-					{ isLocked
-						? __(
-								'Only editors can remove the Editorial Stop.',
-								'pa-editorial-engine'
-						  )
-						: __(
-								'Only editors can activate the Editorial Stop.',
-								'pa-editorial-engine'
-						  ) }
-				</p>
 			) }
 		</PluginDocumentSettingPanel>
 	);
