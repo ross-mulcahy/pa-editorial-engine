@@ -22,7 +22,9 @@ class Settings {
 	 * Hook into WordPress.
 	 */
 	public function init(): void {
+		// Register on both admin_init (for admin pages) and rest_api_init (for REST access).
 		add_action( 'admin_init', [ $this, 'register_settings' ] );
+		add_action( 'rest_api_init', [ $this, 'register_settings' ] );
 		add_action( 'admin_menu', [ $this, 'add_settings_page' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
 
@@ -118,12 +120,18 @@ class Settings {
 			true
 		);
 
-		wp_enqueue_style(
-			'pa-editorial-engine-admin',
-			PA_EDITORIAL_ENGINE_URL . 'assets/admin.css',
-			[ 'wp-components' ],
-			$asset['version'] ?? PA_EDITORIAL_ENGINE_VERSION
-		);
+		// Only enqueue admin CSS if it exists (build may not produce one).
+		$admin_css = PA_EDITORIAL_ENGINE_PATH . 'assets/admin.css';
+		if ( file_exists( $admin_css ) ) {
+			wp_enqueue_style(
+				'pa-editorial-engine-admin',
+				PA_EDITORIAL_ENGINE_URL . 'assets/admin.css',
+				[ 'wp-components' ],
+				$asset['version'] ?? PA_EDITORIAL_ENGINE_VERSION
+			);
+		} else {
+			wp_enqueue_style( 'wp-components' );
+		}
 
 		// Pass API credential availability flags to JS.
 		wp_localize_script(
