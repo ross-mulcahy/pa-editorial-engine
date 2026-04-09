@@ -93,6 +93,22 @@ if ( ! function_exists( 'term_exists' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_post_status' ) ) {
+	function get_post_status( int $post_id ): string|false {
+		return $GLOBALS['pa_test_post_status'][ $post_id ] ?? false;
+	}
+}
+
+if ( ! function_exists( 'register_post_status' ) ) {
+	function register_post_status( string $status, array $args = [] ): void {}
+}
+
+if ( ! function_exists( '_n_noop' ) ) {
+	function _n_noop( string $singular, string $plural, string $domain = 'default' ): array {
+		return [ 'singular' => $singular, 'plural' => $plural, 'domain' => $domain ];
+	}
+}
+
 if ( ! function_exists( 'set_transient' ) ) {
 	function set_transient( string $transient, mixed $value, int $expiration = 0 ): bool {
 		$GLOBALS['pa_test_transients'][ $transient ] = $value;

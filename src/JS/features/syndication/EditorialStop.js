@@ -1,24 +1,23 @@
 /**
- * Editorial Stop — full content freeze.
+ * Editorial Stop — full content freeze using custom "locked" post status.
  *
- * When active, the post is frozen: no content, title, or status changes
- * are allowed. Only users with edit_others_posts (editors+) can toggle
- * the stop. The name of the user who activated it is displayed.
+ * When activated, changes the post status to "locked" and saves immediately.
+ * When deactivated, restores the previous status. Only editors can toggle.
+ * Shows who locked the post.
  */
 
-import { useEntityProp } from '@wordpress/core-data';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { PluginDocumentSettingPanel } from '@wordpress/editor';
-import { ToggleControl, Notice } from '@wordpress/components';
+import { Button, Notice } from '@wordpress/components';
 import { __, sprintf } from '@wordpress/i18n';
-import { useEffect, useRef } from '@wordpress/element';
+import { useEffect } from '@wordpress/element';
 
 const OVERLAY_ID = 'pa-editorial-stop-overlay';
 
 /**
- * Get the editor iframe document (WP 7.0+ renders blocks in an iframe).
+ * Get the editor iframe document.
  *
- * @return {Document|null} The iframe document, or null if not found.
+ * @return {Document|null} The iframe document, or null.
  */
 function getEditorIframeDoc() {
 	const iframe = document.querySelector( 'iframe[name="editor-canvas"]' );
@@ -35,7 +34,6 @@ function setEditorFrozen( frozen ) {
 
 	if ( iframeDoc ) {
 		let overlay = iframeDoc.getElementById( OVERLAY_ID );
-
 		if ( frozen && ! overlay ) {
 			overlay = iframeDoc.createElement( 'div' );
 			overlay.id = OVERLAY_ID;
@@ -54,7 +52,6 @@ function setEditorFrozen( frozen ) {
 		}
 	}
 
-	// Title is in the parent document.
 	const titleEl = document.querySelector(
 		'.editor-post-title__input, .wp-block-post-title'
 	);
@@ -68,7 +65,6 @@ function setEditorFrozen( frozen ) {
 		}
 	}
 
-	// Grey out header and sidebar.
 	[ '.editor-header', '.interface-interface-skeleton__sidebar' ].forEach(
 		( selector ) => {
 			const el = document.querySelector( selector );
@@ -92,22 +88,24 @@ function blockSave( event ) {
 }
 
 export function EditorialStop() {
-	const [ meta, setMeta ] = useEntityProp( 'postType', 'post', 'meta' );
-	const stopActive = meta?._pa_editorial_stop || false;
-	const { createErrorNotice } = useDispatch( 'core/notices' );
-	const { lockPostSaving, unlockPostSaving } = useDispatch( 'core/editor' );
-	const isSavingPost = useSelect( ( selectFn ) =>
-		selectFn( 'core/editor' ).isSavingPost()
-	);
-	const prevSaving = useRef( false );
-
 	const config = window.paEditorialSyndication || {};
 	const canToggle = config.canToggleStop;
 	const stopByName = config.stopByName;
+	const preLockStatus = config.preLockStatus || 'draft';
+	const lockedStatus = config.lockedStatus || 'locked';
 
-	// Lock/unlock the editor when stop state changes.
+	const { editPost, savePost, lockPostSaving, unlockPostSaving } =
+		useDispatch( 'core/editor' );
+
+	const postStatus = useSelect( ( selectFn ) =>
+		selectFn( 'core/editor' ).getEditedPostAttribute( 'status' )
+	);
+
+	const isLocked = postStatus === lockedStatus;
+
+	// Apply/remove visual freeze based on lock status.
 	useEffect( () => {
-		if ( stopActive ) {
+		if ( isLocked ) {
 			lockPostSaving( 'pa-editorial-stop' );
 			document.addEventListener( 'keydown', blockSave, true );
 
@@ -129,41 +127,28 @@ export function EditorialStop() {
 		unlockPostSaving( 'pa-editorial-stop' );
 		setEditorFrozen( false );
 		document.removeEventListener( 'keydown', blockSave, true );
-	}, [ stopActive, lockPostSaving, unlockPostSaving ] );
+	}, [ isLocked, lockPostSaving, unlockPostSaving ] );
 
-	// Show error notice when a save fails due to the stop.
-	useEffect( () => {
-		if ( prevSaving.current && ! isSavingPost && stopActive ) {
-			createErrorNotice(
-				__(
-					'Editorial Stop is active. This post has been signed off and cannot be modified.',
-					'pa-editorial-engine'
-				),
-				{ type: 'snackbar', isDismissible: true }
-			);
-		}
-		prevSaving.current = isSavingPost;
-	}, [ isSavingPost, stopActive, createErrorNotice ] );
-
-	const handleToggle = ( value ) => {
-		setMeta( {
-			...meta,
-			_pa_editorial_stop: value,
-			// Store who activated it; clear when deactivated.
-			_pa_editorial_stop_by: value ? 0 : 0, // Server will set via current user.
-		} );
+	const handleLock = () => {
+		editPost( { status: lockedStatus } );
+		savePost();
 	};
 
-	// Build the frozen notice message.
+	const handleUnlock = () => {
+		editPost( { status: preLockStatus || 'draft' } );
+		savePost();
+	};
+
+	// Build the notice message.
 	let frozenMessage = __(
-		'This post is frozen. Content changes are blocked until the stop is removed.',
+		'This post is frozen. Content changes are blocked.',
 		'pa-editorial-engine'
 	);
 	if ( stopByName ) {
 		frozenMessage = sprintf(
-			/* translators: %s: display name of the editor who activated the stop */
+			/* translators: %s: display name of the editor who locked the post */
 			__(
-				'Signed off by %s. Content changes are blocked until the stop is removed.',
+				'Signed off by %s. Content changes are blocked.',
 				'pa-editorial-engine'
 			),
 			stopByName
@@ -176,35 +161,25 @@ export function EditorialStop() {
 			title={ __( 'Editorial Stop', 'pa-editorial-engine' ) }
 			className="pa-editorial-stop-panel"
 		>
-			{ stopActive && (
+			{ isLocked && (
 				<Notice status="warning" isDismissible={ false }>
 					{ frozenMessage }
 				</Notice>
 			) }
-			{ canToggle ? (
-				<ToggleControl
-					__nextHasNoMarginBottom
-					label={ __(
-						'Activate Editorial Stop',
-						'pa-editorial-engine'
-					) }
-					help={
-						stopActive
-							? __(
-									'Post is signed off. All changes are blocked.',
-									'pa-editorial-engine'
-							  )
-							: __(
-									'Enable to freeze this post after sign-off.',
-									'pa-editorial-engine'
-							  )
-					}
-					checked={ stopActive }
-					onChange={ handleToggle }
-				/>
-			) : (
+
+			{ canToggle && isLocked && (
+				<Button variant="secondary" onClick={ handleUnlock }>
+					{ __( 'Remove Editorial Stop', 'pa-editorial-engine' ) }
+				</Button>
+			) }
+			{ canToggle && ! isLocked && (
+				<Button variant="primary" onClick={ handleLock }>
+					{ __( 'Activate Editorial Stop', 'pa-editorial-engine' ) }
+				</Button>
+			) }
+			{ ! canToggle && (
 				<p>
-					{ stopActive
+					{ isLocked
 						? __(
 								'Only editors can remove the Editorial Stop.',
 								'pa-editorial-engine'
