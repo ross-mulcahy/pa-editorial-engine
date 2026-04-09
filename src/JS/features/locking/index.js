@@ -5,8 +5,10 @@
  * 1. Applies a CSS lockdown class to disable all editor interaction.
  * 2. Renders a non-dismissible modal with the lock holder's name.
  * 3. Disables native WP 7.0 real-time collaboration via Abilities API.
+ * 4. Listens for heartbeat-driven editorial stop changes in real time.
  */
 
+/* global jQuery */
 import { subscribe, select } from '@wordpress/data';
 import { render, createElement } from '@wordpress/element';
 import { NuclearLockModal } from './NuclearLockModal';
@@ -82,6 +84,53 @@ function blockKeyboardSave( event ) {
 	}
 }
 
+// Heartbeat-driven lock state — updated when another user locks the post.
+let heartbeatLocked = false;
+let heartbeatLockerName = '';
+
+/**
+ * Set up the heartbeat client to detect editorial stop changes in real time.
+ *
+ * Sends the post ID on each heartbeat tick. The server checks the post
+ * status and returns lock info. If the post was just locked by another
+ * editor, we update the local state and the subscribe() loop picks it up.
+ */
+function initHeartbeatLockCheck() {
+	if ( typeof jQuery === 'undefined' || ! jQuery( document ).on ) {
+		return;
+	}
+
+	const editor = select( 'core/editor' );
+	if ( ! editor ) {
+		return;
+	}
+
+	// Send the post ID on each heartbeat tick.
+	jQuery( document ).on( 'heartbeat-send', ( event, data ) => {
+		const currentPost = editor.getCurrentPost();
+		if ( currentPost?.id ) {
+			data.pa_editorial_stop_check = currentPost.id;
+		}
+	} );
+
+	// Process the heartbeat response.
+	jQuery( document ).on( 'heartbeat-tick', ( event, data ) => {
+		if ( ! data.pa_editorial_stop ) {
+			return;
+		}
+
+		const lockInfo = data.pa_editorial_stop;
+
+		if ( lockInfo.locked && ! lockInfo.can_unlock ) {
+			heartbeatLocked = true;
+			heartbeatLockerName = lockInfo.locked_by || '';
+		} else {
+			heartbeatLocked = false;
+			heartbeatLockerName = '';
+		}
+	} );
+}
+
 /**
  * Initialise the nuclear lock subscriber.
  */
@@ -96,6 +145,9 @@ export function initNuclearLocking() {
 	const canToggleStop = syndicationConfig.canToggleStop;
 	const stopByName = syndicationConfig.stopByName || '';
 
+	// Start listening for heartbeat-driven lock changes.
+	initHeartbeatLockCheck();
+
 	subscribe( () => {
 		const editor = select( 'core/editor' );
 
@@ -108,13 +160,16 @@ export function initNuclearLocking() {
 		const lockDetails = editor.getPostLockUser?.() || {};
 		const wpLockerName = lockDetails?.name || lockDetails?.nickname || '';
 
-		// Check editorial stop (locked post status) — lock for non-editors.
+		// Check editorial stop — from initial page load or heartbeat.
 		const postStatus = editor.getEditedPostAttribute( 'status' );
 		const isEditorialLocked =
-			postStatus === lockedStatus && ! canToggleStop;
+			( postStatus === lockedStatus && ! canToggleStop ) ||
+			heartbeatLocked;
 
 		const shouldLock = isWPLocked || isEditorialLocked;
-		const lockerName = isEditorialLocked ? stopByName : wpLockerName;
+		const lockerName = isEditorialLocked
+			? heartbeatLockerName || stopByName
+			: wpLockerName;
 
 		if ( shouldLock && ! lockApplied ) {
 			lockApplied = true;

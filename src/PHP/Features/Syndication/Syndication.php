@@ -45,6 +45,9 @@ class Syndication implements FeatureInterface {
 		// Track who locked the post.
 		\add_action( 'transition_post_status', [ $this, 'track_lock_user' ], 10, 3 );
 
+		// Heartbeat: notify all users in the post when it gets locked.
+		\add_filter( 'heartbeat_received', [ $this, 'heartbeat_check_lock' ], 10, 2 );
+
 		// Action Scheduler callback for sending corrections.
 		\add_action( 'pa_send_correction', [ $this, 'send_correction' ] );
 
@@ -159,14 +162,62 @@ class Syndication implements FeatureInterface {
 	 */
 	public function track_lock_user( string $new_status, string $old_status, \WP_Post $post ): void {
 		if ( self::LOCKED_STATUS === $new_status && self::LOCKED_STATUS !== $old_status ) {
-			// Entering locked — store who did it and what the previous status was.
 			\update_post_meta( $post->ID, '_pa_editorial_stop_by', \get_current_user_id() );
 			\update_post_meta( $post->ID, '_pa_pre_lock_status', $old_status );
 		} elseif ( self::LOCKED_STATUS !== $new_status && self::LOCKED_STATUS === $old_status ) {
-			// Leaving locked — clear tracking.
 			\delete_post_meta( $post->ID, '_pa_editorial_stop_by' );
 			\delete_post_meta( $post->ID, '_pa_pre_lock_status' );
 		}
+	}
+
+	/**
+	 * Heartbeat handler: check if the post has been locked since the user opened it.
+	 *
+	 * The JS client sends the post ID on every heartbeat tick. This handler
+	 * checks the current post status and returns lock info if the post is
+	 * now in the 'locked' status. The JS client then triggers the lock UI
+	 * for users already in the editor.
+	 *
+	 * @param array<string, mixed> $response Heartbeat response data.
+	 * @param array<string, mixed> $data     Heartbeat request data.
+	 * @return array<string, mixed> Modified response.
+	 */
+	public function heartbeat_check_lock( array $response, array $data ): array {
+		if ( empty( $data['pa_editorial_stop_check'] ) ) {
+			return $response;
+		}
+
+		$post_id = \absint( $data['pa_editorial_stop_check'] );
+
+		if ( ! $post_id ) {
+			return $response;
+		}
+
+		$status = \get_post_status( $post_id );
+
+		if ( self::LOCKED_STATUS === $status ) {
+			$locked_by_id   = \get_post_meta( $post_id, '_pa_editorial_stop_by', true );
+			$locked_by_name = '';
+
+			if ( $locked_by_id ) {
+				$user = \get_userdata( (int) $locked_by_id );
+				if ( $user ) {
+					$locked_by_name = $user->display_name;
+				}
+			}
+
+			$response['pa_editorial_stop'] = [
+				'locked'      => true,
+				'locked_by'   => $locked_by_name,
+				'can_unlock'  => self::current_user_is_editor_or_above(),
+			];
+		} else {
+			$response['pa_editorial_stop'] = [
+				'locked' => false,
+			];
+		}
+
+		return $response;
 	}
 
 	/**
