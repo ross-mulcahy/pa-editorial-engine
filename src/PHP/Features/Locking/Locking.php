@@ -170,6 +170,12 @@ class Locking implements FeatureInterface {
 	 * @return bool True if locked by another user.
 	 */
 	private function is_locked_by_another( int $post_id ): bool {
+		// wp_check_post_lock() lives in wp-admin/includes/post.php and
+		// is not loaded during REST API requests. Load it if needed.
+		if ( ! \function_exists( 'wp_check_post_lock' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/post.php';
+		}
+
 		$lock = \wp_check_post_lock( $post_id );
 		return $lock && $lock !== \get_current_user_id();
 	}
