@@ -74,6 +74,17 @@ if ( ! function_exists( 'esc_html' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_get_current_user' ) ) {
+	function wp_get_current_user(): object {
+		$user_id = $GLOBALS['pa_test_current_user'] ?? 0;
+		if ( ! $user_id ) {
+			return (object) [ 'ID' => 0, 'roles' => [] ];
+		}
+		$roles = $GLOBALS['pa_test_user_roles'][ $user_id ] ?? [];
+		return (object) [ 'ID' => $user_id, 'roles' => $roles ];
+	}
+}
+
 if ( ! function_exists( 'current_user_can' ) ) {
 	function current_user_can( string $capability ): bool {
 		return $GLOBALS['pa_test_user_can'] ?? false;

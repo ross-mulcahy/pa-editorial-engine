@@ -96,11 +96,10 @@ class Syndication implements FeatureInterface {
 			return $prepared_post;
 		}
 
-		// Allow status change FROM locked (unlocking the post).
+		// Allow status change FROM locked (unlocking the post) — editors only.
 		$params = $request->get_json_params();
 		if ( $params && isset( $params['status'] ) && self::LOCKED_STATUS !== $params['status'] ) {
-			// Only editors can unlock.
-			if ( \current_user_can( 'edit_others_posts' ) ) {
+			if ( self::current_user_is_editor_or_above() ) {
 				return $prepared_post;
 			}
 		}
@@ -232,13 +231,39 @@ class Syndication implements FeatureInterface {
 			'paEditorialSyndication',
 			[
 				'enabled'        => true,
-				'canToggleStop'  => \current_user_can( 'edit_others_posts' ),
+				'canToggleStop'  => self::current_user_is_editor_or_above(),
 				'isLocked'       => $is_locked,
 				'stopByName'     => $stop_by_name,
 				'preLockStatus'  => $pre_lock_status,
 				'lockedStatus'   => self::LOCKED_STATUS,
 			]
 		);
+	}
+
+	/**
+	 * Check if the current user has the editor role or above (editor, administrator).
+	 *
+	 * Uses role-based check rather than capability check because some sites
+	 * (e.g. Newspack) grant edit_others_posts to authors.
+	 *
+	 * @return bool True if user is editor or administrator.
+	 */
+	public static function current_user_is_editor_or_above(): bool {
+		$user = \wp_get_current_user();
+
+		if ( ! $user || ! $user->ID ) {
+			return false;
+		}
+
+		$allowed_roles = [ 'editor', 'administrator' ];
+
+		foreach ( $user->roles as $role ) {
+			if ( \in_array( $role, $allowed_roles, true ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

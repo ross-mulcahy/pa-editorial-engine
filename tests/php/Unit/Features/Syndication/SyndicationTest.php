@@ -78,7 +78,8 @@ class SyndicationTest extends TestCase {
 
 	public function test_stop_allows_unlock_by_editor(): void {
 		$GLOBALS['pa_test_post_status'][42] = 'locked';
-		$GLOBALS['pa_test_user_can']        = true;
+		$GLOBALS['pa_test_current_user']    = 10;
+		$GLOBALS['pa_test_user_roles']      = [ 10 => [ 'editor' ] ];
 
 		$prepared     = new \stdClass();
 		$prepared->ID = 42;
@@ -93,7 +94,8 @@ class SyndicationTest extends TestCase {
 
 	public function test_stop_blocks_unlock_by_non_editor(): void {
 		$GLOBALS['pa_test_post_status'][42] = 'locked';
-		$GLOBALS['pa_test_user_can']        = false;
+		$GLOBALS['pa_test_current_user']    = 20;
+		$GLOBALS['pa_test_user_roles']      = [ 20 => [ 'author' ] ];
 
 		$prepared     = new \stdClass();
 		$prepared->ID = 42;
