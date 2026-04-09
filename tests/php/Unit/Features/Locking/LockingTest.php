@@ -55,63 +55,6 @@ class LockingTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------
-	// block_locked_post_saves()
-	// ---------------------------------------------------------------
-
-	public function test_block_locked_post_saves_allows_new_posts(): void {
-		$prepared = new stdClass();
-		// No ID means it's a new post creation.
-		$request = $this->createMock( WP_REST_Request::class );
-
-		$result = $this->locking->block_locked_post_saves( $prepared, $request );
-		$this->assertSame( $prepared, $result );
-	}
-
-	public function test_block_locked_post_saves_allows_when_not_locked(): void {
-		// wp_check_post_lock returns false (no lock).
-		$GLOBALS['pa_test_post_lock'] = false;
-
-		$prepared     = new stdClass();
-		$prepared->ID = 42;
-		$request      = $this->createMock( WP_REST_Request::class );
-
-		$result = $this->locking->block_locked_post_saves( $prepared, $request );
-		$this->assertSame( $prepared, $result );
-	}
-
-	public function test_block_locked_post_saves_allows_when_current_user_holds_lock(): void {
-		// wp_check_post_lock returns the current user ID (they hold the lock).
-		$GLOBALS['pa_test_post_lock']    = 1;
-		$GLOBALS['pa_test_current_user'] = 1;
-
-		$prepared     = new stdClass();
-		$prepared->ID = 42;
-		$request      = $this->createMock( WP_REST_Request::class );
-
-		$result = $this->locking->block_locked_post_saves( $prepared, $request );
-		$this->assertSame( $prepared, $result );
-	}
-
-	public function test_block_locked_post_saves_blocks_when_locked_by_another(): void {
-		// Lock held by user 2, current user is 1.
-		$GLOBALS['pa_test_post_lock']    = 2;
-		$GLOBALS['pa_test_current_user'] = 1;
-		$GLOBALS['pa_test_user_data']    = (object) [
-			'display_name' => 'Jane Editor',
-		];
-
-		$prepared     = new stdClass();
-		$prepared->ID = 42;
-		$request      = $this->createMock( WP_REST_Request::class );
-
-		$result = $this->locking->block_locked_post_saves( $prepared, $request );
-
-		$this->assertInstanceOf( WP_Error::class, $result );
-		$this->assertSame( 'locked_content', $result->get_error_code() );
-		$this->assertSame( 403, $result->get_error_data()['status'] );
-	}
-
-	// ---------------------------------------------------------------
 	// filter_heartbeat_for_role_priority()
 	// ---------------------------------------------------------------
 

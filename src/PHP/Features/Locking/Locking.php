@@ -40,49 +40,14 @@ class Locking implements FeatureInterface {
 	}
 
 	public function init(): void {
-		// Server-side: block REST saves on locked posts.
-		\add_filter( 'rest_pre_insert_post', [ $this, 'block_locked_post_saves' ], 10, 2 );
-
 		// Server-side: enforce role priority on heartbeat (remove takeover for junior roles).
+		// Note: REST save blocking is handled by the Syndication feature's "locked"
+		// post status. We do NOT block saves based on wp_check_post_lock() because
+		// WP 7.0 real-time collaboration allows multiple users in a post simultaneously.
 		\add_filter( 'heartbeat_received', [ $this, 'filter_heartbeat_for_role_priority' ], 10, 2 );
 
 		// Enqueue editor assets for client-side lockdown.
 		\add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
-	}
-
-	/**
-	 * Block REST saves (including autosaves) when the post is locked by another user.
-	 *
-	 * Hooked to `rest_pre_insert_post`.
-	 *
-	 * @param \stdClass        $prepared_post The prepared post data.
-	 * @param \WP_REST_Request $request       The REST request.
-	 * @return \stdClass|WP_Error The prepared post or an error.
-	 */
-	public function block_locked_post_saves( \stdClass $prepared_post, \WP_REST_Request $request ): \stdClass|WP_Error {
-		$post_id = $prepared_post->ID ?? 0;
-
-		if ( ! $post_id ) {
-			return $prepared_post;
-		}
-
-		if ( ! $this->is_locked_by_another( $post_id ) ) {
-			return $prepared_post;
-		}
-
-		$lock_holder_id = \wp_check_post_lock( $post_id );
-		$lock_holder    = \get_userdata( $lock_holder_id );
-		$display_name   = $lock_holder ? $lock_holder->display_name : __( 'another user', 'pa-editorial-engine' );
-
-		return new WP_Error(
-			'locked_content',
-			\sprintf(
-				/* translators: %s: display name of the user who holds the lock */
-				__( 'This post is currently being edited by %s. Your changes cannot be saved.', 'pa-editorial-engine' ),
-				$display_name
-			),
-			[ 'status' => 403 ]
-		);
 	}
 
 	/**
