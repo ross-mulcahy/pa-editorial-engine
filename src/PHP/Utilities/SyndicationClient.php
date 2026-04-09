@@ -20,13 +20,13 @@ class SyndicationClient {
 	 * @return bool True on success, false on failure.
 	 */
 	public function send_correction( int $post_id ): bool {
-		$post = get_post( $post_id );
+		$post = \get_post( $post_id );
 
 		if ( ! $post || 'publish' !== $post->post_status ) {
 			return false;
 		}
 
-		$correction_note = get_post_meta( $post_id, '_pa_correction_note', true );
+		$correction_note = \get_post_meta( $post_id, '_pa_correction_note', true );
 		$endpoint        = $this->get_endpoint();
 
 		if ( ! $endpoint ) {
@@ -36,29 +36,29 @@ class SyndicationClient {
 
 		$payload = $this->build_payload( $post, $correction_note );
 
-		$response = wp_safe_remote_post(
+		$response = \wp_safe_remote_post(
 			$endpoint,
 			[
 				'headers' => [
 					'Content-Type'  => 'application/json',
 					'Authorization' => 'Bearer ' . $this->get_api_key(),
 				],
-				'body'    => wp_json_encode( $payload ),
+				'body'    => \wp_json_encode( $payload ),
 				'timeout' => 3,
 			]
 		);
 
-		if ( is_wp_error( $response ) ) {
+		if ( \is_wp_error( $response ) ) {
 			$this->log_error( $post_id, $response->get_error_message() );
 			return false;
 		}
 
-		$status_code = wp_remote_retrieve_response_code( $response );
+		$status_code = \wp_remote_retrieve_response_code( $response );
 
 		if ( $status_code < 200 || $status_code >= 300 ) {
 			$this->log_error(
 				$post_id,
-				sprintf( 'PA Wire API returned HTTP %d.', $status_code )
+				\sprintf( 'PA Wire API returned HTTP %d.', $status_code )
 			);
 			return false;
 		}
@@ -77,9 +77,9 @@ class SyndicationClient {
 		return [
 			'post_id'         => $post->ID,
 			'title'           => $post->post_title,
-			'url'             => get_permalink( $post->ID ),
+			'url'             => \get_permalink( $post->ID ),
 			'correction_note' => $correction_note,
-			'corrected_at'    => current_time( 'c' ),
+			'corrected_at'    => \current_time( 'c' ),
 			'author_id'       => $post->post_author,
 		];
 	}
@@ -90,7 +90,7 @@ class SyndicationClient {
 	 * @return string|null Endpoint URL, or null if not configured.
 	 */
 	private function get_endpoint(): ?string {
-		if ( defined( 'PA_WIRE_API_ENDPOINT' ) && PA_WIRE_API_ENDPOINT ) {
+		if ( \defined( 'PA_WIRE_API_ENDPOINT' ) && PA_WIRE_API_ENDPOINT ) {
 			return PA_WIRE_API_ENDPOINT;
 		}
 
@@ -103,7 +103,7 @@ class SyndicationClient {
 	 * @return string API key, or empty string if not configured.
 	 */
 	private function get_api_key(): string {
-		if ( defined( 'PA_WIRE_API_KEY' ) && PA_WIRE_API_KEY ) {
+		if ( \defined( 'PA_WIRE_API_KEY' ) && PA_WIRE_API_KEY ) {
 			return PA_WIRE_API_KEY;
 		}
 
@@ -117,17 +117,17 @@ class SyndicationClient {
 	 * @param string $message Error message.
 	 */
 	private function log_error( int $post_id, string $message ): void {
-		$log_message = sprintf(
+		$log_message = \sprintf(
 			'[PA Editorial Engine] Correction syndication failed for post %d: %s',
 			$post_id,
 			$message
 		);
 
-		if ( function_exists( 'wpcomvip_log' ) ) {
+		if ( \function_exists( 'wpcomvip_log' ) ) {
 			wpcomvip_log( $log_message );
 		} else {
 			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
-			error_log( $log_message );
+			\error_log( $log_message );
 		}
 	}
 }

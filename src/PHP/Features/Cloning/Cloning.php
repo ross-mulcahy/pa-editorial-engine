@@ -28,10 +28,10 @@ class Cloning implements FeatureInterface {
 	}
 
 	public function init(): void {
-		add_filter( 'post_row_actions', [ $this, 'add_clone_action' ], 10, 2 );
-		add_action( 'admin_action_pa_clone_post', [ $this, 'handle_clone_request' ] );
-		add_action( 'admin_notices', [ $this, 'show_clone_notice' ] );
-		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
+		\add_filter( 'post_row_actions', [ $this, 'add_clone_action' ], 10, 2 );
+		\add_action( 'admin_action_pa_clone_post', [ $this, 'handle_clone_request' ] );
+		\add_action( 'admin_notices', [ $this, 'show_clone_notice' ] );
+		\add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
 	}
 
 	/**
@@ -42,7 +42,7 @@ class Cloning implements FeatureInterface {
 	 * @return array<string, string> Modified row actions.
 	 */
 	public function add_clone_action( array $actions, WP_Post $post ): array {
-		if ( ! current_user_can( 'edit_others_posts' ) ) {
+		if ( ! \current_user_can( 'edit_others_posts' ) ) {
 			return $actions;
 		}
 
@@ -50,15 +50,15 @@ class Cloning implements FeatureInterface {
 			return $actions;
 		}
 
-		$url = wp_nonce_url(
-			admin_url( 'admin.php?action=pa_clone_post&post=' . $post->ID ),
+		$url = \wp_nonce_url(
+			\admin_url( 'admin.php?action=pa_clone_post&post=' . $post->ID ),
 			'pa_clone_' . $post->ID
 		);
 
-		$actions['pa_clone'] = sprintf(
+		$actions['pa_clone'] = \sprintf(
 			'<a href="%s">%s</a>',
-			esc_url( $url ),
-			esc_html__( 'Add New Lead', 'pa-editorial-engine' )
+			\esc_url( $url ),
+			\esc_html__( 'Add New Lead', 'pa-editorial-engine' )
 		);
 
 		return $actions;
@@ -69,26 +69,26 @@ class Cloning implements FeatureInterface {
 	 */
 	public function handle_clone_request(): void {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- absint handles sanitization.
-		$post_id = isset( $_GET['post'] ) ? absint( wp_unslash( $_GET['post'] ) ) : 0;
+		$post_id = isset( $_GET['post'] ) ? \absint( \wp_unslash( $_GET['post'] ) ) : 0;
 
 		if ( ! $post_id ) {
-			wp_die( esc_html__( 'No post specified.', 'pa-editorial-engine' ) );
+			\wp_die( \esc_html__( 'No post specified.', 'pa-editorial-engine' ) );
 		}
 
-		check_admin_referer( 'pa_clone_' . $post_id );
+		\check_admin_referer( 'pa_clone_' . $post_id );
 
-		if ( ! current_user_can( 'edit_others_posts' ) ) {
-			wp_die( esc_html__( 'You do not have permission to clone posts.', 'pa-editorial-engine' ) );
+		if ( ! \current_user_can( 'edit_others_posts' ) ) {
+			\wp_die( \esc_html__( 'You do not have permission to clone posts.', 'pa-editorial-engine' ) );
 		}
 
 		$new_id = $this->clone_post( $post_id );
 
-		if ( is_wp_error( $new_id ) ) {
-			wp_die( esc_html( $new_id->get_error_message() ) );
+		if ( \is_wp_error( $new_id ) ) {
+			\wp_die( \esc_html( $new_id->get_error_message() ) );
 		}
 
-		wp_safe_redirect(
-			admin_url( 'post.php?post=' . $new_id . '&action=edit&pa_cloned=1' )
+		\wp_safe_redirect(
+			\admin_url( 'post.php?post=' . $new_id . '&action=edit&pa_cloned=1' )
 		);
 		exit;
 	}
@@ -100,7 +100,7 @@ class Cloning implements FeatureInterface {
 	 * @return int|\WP_Error New post ID on success.
 	 */
 	public function clone_post( int $post_id ): int|\WP_Error {
-		$source = get_post( $post_id );
+		$source = \get_post( $post_id );
 
 		if ( ! $source ) {
 			return new \WP_Error(
@@ -119,27 +119,27 @@ class Cloning implements FeatureInterface {
 			'post_type'    => $source->post_type,
 		];
 
-		$new_id = wp_insert_post( $new_post, true );
+		$new_id = \wp_insert_post( $new_post, true );
 
-		if ( is_wp_error( $new_id ) ) {
+		if ( \is_wp_error( $new_id ) ) {
 			return $new_id;
 		}
 
 		// Copy all taxonomy terms from the source.
-		$taxonomies = get_object_taxonomies( $source->post_type );
+		$taxonomies = \get_object_taxonomies( $source->post_type );
 		foreach ( $taxonomies as $taxonomy ) {
-			$terms = wp_get_object_terms( $post_id, $taxonomy, [ 'fields' => 'ids' ] );
-			if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-				wp_set_object_terms( $new_id, $terms, $taxonomy );
+			$terms = \wp_get_object_terms( $post_id, $taxonomy, [ 'fields' => 'ids' ] );
+			if ( ! \is_wp_error( $terms ) && ! empty( $terms ) ) {
+				\wp_set_object_terms( $new_id, $terms, $taxonomy );
 			}
 		}
 
 		// Strip featured image and editorial stop from the clone.
-		delete_post_meta( $new_id, '_thumbnail_id' );
-		update_post_meta( $new_id, '_pa_editorial_stop', false );
+		\delete_post_meta( $new_id, '_thumbnail_id' );
+		\update_post_meta( $new_id, '_pa_editorial_stop', false );
 
 		// Track parent relationship.
-		update_post_meta( $new_id, '_pa_parent_story_id', $post_id );
+		\update_post_meta( $new_id, '_pa_parent_story_id', $post_id );
 
 		return $new_id;
 	}
@@ -148,7 +148,7 @@ class Cloning implements FeatureInterface {
 	 * Show admin notice after successful clone.
 	 */
 	public function show_clone_notice(): void {
-		$screen = get_current_screen();
+		$screen = \get_current_screen();
 
 		if ( ! $screen || 'post' !== $screen->base ) {
 			return;
@@ -159,9 +159,9 @@ class Cloning implements FeatureInterface {
 			return;
 		}
 
-		printf(
+		\printf(
 			'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
-			esc_html__( 'New Lead created. Please provide a new headline and featured image.', 'pa-editorial-engine' )
+			\esc_html__( 'New Lead created. Please provide a new headline and featured image.', 'pa-editorial-engine' )
 		);
 	}
 
@@ -175,17 +175,17 @@ class Cloning implements FeatureInterface {
 			return;
 		}
 
-		if ( ! current_user_can( 'edit_others_posts' ) ) {
+		if ( ! \current_user_can( 'edit_others_posts' ) ) {
 			return;
 		}
 
-		wp_localize_script(
+		\wp_localize_script(
 			'pa-editorial-engine-editor',
 			'paEditorialCloning',
 			[
 				'enabled'  => true,
-				'cloneUrl' => wp_nonce_url(
-					admin_url( 'admin.php?action=pa_clone_post&post=' . $post->ID ),
+				'cloneUrl' => \wp_nonce_url(
+					\admin_url( 'admin.php?action=pa_clone_post&post=' . $post->ID ),
 					'pa_clone_' . $post->ID
 				),
 			]

@@ -42,7 +42,7 @@ class FeatureManager {
 		( new Settings() )->init();
 
 		// Register post meta keys (always available regardless of feature state).
-		add_action( 'init', [ $this, 'register_meta' ] );
+		\add_action( 'init', [ $this, 'register_meta' ] );
 
 		// Initialise enabled features.
 		foreach ( $this->features as $class ) {
@@ -63,13 +63,13 @@ class FeatureManager {
 	private function load_settings(): array {
 		$cached = Cache::get( self::SETTINGS_KEY );
 
-		if ( false !== $cached && is_array( $cached ) ) {
+		if ( false !== $cached && \is_array( $cached ) ) {
 			return $cached;
 		}
 
-		$settings = get_option( self::SETTINGS_KEY, $this->get_all_defaults() );
+		$settings = \get_option( self::SETTINGS_KEY, $this->get_all_defaults() );
 
-		if ( ! is_array( $settings ) ) {
+		if ( ! \is_array( $settings ) ) {
 			$settings = $this->get_all_defaults();
 		}
 
@@ -105,7 +105,7 @@ class FeatureManager {
 		$post_types = [ 'post' ];
 
 		foreach ( $post_types as $post_type ) {
-			register_post_meta(
+			\register_post_meta(
 				$post_type,
 				'_pa_editorial_stop',
 				[
@@ -115,12 +115,12 @@ class FeatureManager {
 					'show_in_rest'      => true,
 					'sanitize_callback' => 'rest_sanitize_boolean',
 					'auth_callback'     => function () {
-						return current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_posts' );
 					},
 				]
 			);
 
-			register_post_meta(
+			\register_post_meta(
 				$post_type,
 				'_pa_is_correction',
 				[
@@ -130,12 +130,12 @@ class FeatureManager {
 					'show_in_rest'      => true,
 					'sanitize_callback' => 'rest_sanitize_boolean',
 					'auth_callback'     => function () {
-						return current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_posts' );
 					},
 				]
 			);
 
-			register_post_meta(
+			\register_post_meta(
 				$post_type,
 				'_pa_correction_note',
 				[
@@ -145,12 +145,12 @@ class FeatureManager {
 					'show_in_rest'      => true,
 					'sanitize_callback' => 'sanitize_textarea_field',
 					'auth_callback'     => function () {
-						return current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_posts' );
 					},
 				]
 			);
 
-			register_post_meta(
+			\register_post_meta(
 				$post_type,
 				'_pa_parent_story_id',
 				[
@@ -160,12 +160,12 @@ class FeatureManager {
 					'show_in_rest'      => true,
 					'sanitize_callback' => 'absint',
 					'auth_callback'     => function () {
-						return current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_posts' );
 					},
 				]
 			);
 
-			register_post_meta(
+			\register_post_meta(
 				$post_type,
 				'_pa_auto_mapped_rules',
 				[
@@ -181,7 +181,7 @@ class FeatureManager {
 						],
 					],
 					'auth_callback' => function () {
-						return current_user_can( 'edit_posts' );
+						return \current_user_can( 'edit_posts' );
 					},
 				]
 			);
@@ -192,6 +192,6 @@ class FeatureManager {
 	 * Activation hook callback — set default settings.
 	 */
 	public static function activate(): void {
-		add_option( 'pa_engine_settings', ( new self() )->get_all_defaults() );
+		\add_option( 'pa_engine_settings', ( new self() )->get_all_defaults() );
 	}
 }

@@ -32,8 +32,8 @@ class Metadata implements FeatureInterface {
 	}
 
 	public function init(): void {
-		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
-		add_action( 'save_post', [ $this, 'log_auto_mapped_rules' ], 20, 2 );
+		\add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
+		\add_action( 'save_post', [ $this, 'log_auto_mapped_rules' ], 20, 2 );
 	}
 
 	/**
@@ -42,19 +42,19 @@ class Metadata implements FeatureInterface {
 	public function enqueue_editor_assets(): void {
 		$asset_file = PA_EDITORIAL_ENGINE_PATH . 'assets/editor.asset.php';
 
-		if ( ! file_exists( $asset_file ) ) {
+		if ( ! \file_exists( $asset_file ) ) {
 			return;
 		}
 
 		$taxonomy_map = $this->get_taxonomy_map();
 
-		wp_localize_script(
+		\wp_localize_script(
 			'pa-editorial-engine-editor',
 			'paEditorialMetadata',
 			[
 				'enabled'     => true,
 				'taxonomyMap' => $taxonomy_map,
-				'brokenRules' => get_transient( 'pa_taxonomy_map_broken_rules' ) ?: [],
+				'brokenRules' => \get_transient( 'pa_taxonomy_map_broken_rules' ) ?: [],
 			]
 		);
 	}
@@ -70,7 +70,7 @@ class Metadata implements FeatureInterface {
 	 */
 	public function log_auto_mapped_rules( int $post_id, \WP_Post $post ): void {
 		// Only log for standard posts; skip revisions and autosaves.
-		if ( wp_is_post_revision( $post_id ) || wp_is_post_autosave( $post_id ) ) {
+		if ( \wp_is_post_revision( $post_id ) || \wp_is_post_autosave( $post_id ) ) {
 			return;
 		}
 
@@ -86,13 +86,13 @@ class Metadata implements FeatureInterface {
 	public function get_taxonomy_map(): array {
 		$cached = Cache::get( self::TAXONOMY_MAP_KEY );
 
-		if ( false !== $cached && is_array( $cached ) ) {
+		if ( false !== $cached && \is_array( $cached ) ) {
 			return $cached;
 		}
 
-		$map = get_option( self::TAXONOMY_MAP_KEY, [] );
+		$map = \get_option( self::TAXONOMY_MAP_KEY, [] );
 
-		if ( ! is_array( $map ) ) {
+		if ( ! \is_array( $map ) ) {
 			$map = [];
 		}
 

@@ -22,7 +22,7 @@ class Cache {
 	 * @return mixed Cached value, or false on miss.
 	 */
 	public static function get( string $key ): mixed {
-		return wp_cache_get( $key, self::GROUP );
+		return \wp_cache_get( $key, self::GROUP );
 	}
 
 	/**
@@ -33,7 +33,7 @@ class Cache {
 	 * @param int    $expiry Optional. Expiration in seconds. Default 0 (no expiry).
 	 */
 	public static function set( string $key, mixed $value, int $expiry = 0 ): bool {
-		return wp_cache_set( $key, $value, self::GROUP, $expiry );
+		return \wp_cache_set( $key, $value, self::GROUP, $expiry );
 	}
 
 	/**
@@ -42,6 +42,6 @@ class Cache {
 	 * @param string $key Cache key.
 	 */
 	public static function delete( string $key ): bool {
-		return wp_cache_delete( $key, self::GROUP );
+		return \wp_cache_delete( $key, self::GROUP );
 	}
 }

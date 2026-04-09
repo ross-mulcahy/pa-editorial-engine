@@ -41,13 +41,13 @@ class Locking implements FeatureInterface {
 
 	public function init(): void {
 		// Server-side: block REST saves on locked posts.
-		add_filter( 'rest_pre_insert_post', [ $this, 'block_locked_post_saves' ], 10, 2 );
+		\add_filter( 'rest_pre_insert_post', [ $this, 'block_locked_post_saves' ], 10, 2 );
 
 		// Server-side: enforce role priority on heartbeat (remove takeover for junior roles).
-		add_filter( 'heartbeat_received', [ $this, 'filter_heartbeat_for_role_priority' ], 10, 2 );
+		\add_filter( 'heartbeat_received', [ $this, 'filter_heartbeat_for_role_priority' ], 10, 2 );
 
 		// Enqueue editor assets for client-side lockdown.
-		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
+		\add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
 	}
 
 	/**
@@ -70,13 +70,13 @@ class Locking implements FeatureInterface {
 			return $prepared_post;
 		}
 
-		$lock_holder_id = wp_check_post_lock( $post_id );
-		$lock_holder    = get_userdata( $lock_holder_id );
+		$lock_holder_id = \wp_check_post_lock( $post_id );
+		$lock_holder    = \get_userdata( $lock_holder_id );
 		$display_name   = $lock_holder ? $lock_holder->display_name : __( 'another user', 'pa-editorial-engine' );
 
 		return new WP_Error(
 			'locked_content',
-			sprintf(
+			\sprintf(
 				/* translators: %s: display name of the user who holds the lock */
 				__( 'This post is currently being edited by %s. Your changes cannot be saved.', 'pa-editorial-engine' ),
 				$display_name
@@ -100,19 +100,19 @@ class Locking implements FeatureInterface {
 			return $response;
 		}
 
-		$post_id = absint( $data['wp-refresh-post-lock']['post_id'] );
+		$post_id = \absint( $data['wp-refresh-post-lock']['post_id'] );
 
 		if ( ! $post_id ) {
 			return $response;
 		}
 
-		$lock_holder_id = wp_check_post_lock( $post_id );
+		$lock_holder_id = \wp_check_post_lock( $post_id );
 
 		if ( ! $lock_holder_id ) {
 			return $response;
 		}
 
-		$current_user_weight    = $this->get_user_role_weight( get_current_user_id() );
+		$current_user_weight    = $this->get_user_role_weight( \get_current_user_id() );
 		$lock_holder_weight     = $this->get_user_role_weight( $lock_holder_id );
 
 		// If the current user is junior to (or equal to) the lock holder, remove takeover.
@@ -132,13 +132,13 @@ class Locking implements FeatureInterface {
 	public function enqueue_editor_assets(): void {
 		$asset_file = PA_EDITORIAL_ENGINE_PATH . 'assets/editor.asset.php';
 
-		if ( ! file_exists( $asset_file ) ) {
+		if ( ! \file_exists( $asset_file ) ) {
 			return;
 		}
 
 		$asset = require $asset_file;
 
-		wp_enqueue_script(
+		\wp_enqueue_script(
 			'pa-editorial-engine-editor',
 			PA_EDITORIAL_ENGINE_URL . 'assets/editor.js',
 			$asset['dependencies'] ?? [],
@@ -146,7 +146,7 @@ class Locking implements FeatureInterface {
 			true
 		);
 
-		wp_enqueue_style(
+		\wp_enqueue_style(
 			'pa-editorial-engine-editor',
 			PA_EDITORIAL_ENGINE_URL . 'assets/editor.css',
 			[],
@@ -154,7 +154,7 @@ class Locking implements FeatureInterface {
 		);
 
 		// Pass locking config to JS.
-		wp_localize_script(
+		\wp_localize_script(
 			'pa-editorial-engine-editor',
 			'paEditorialLocking',
 			[
@@ -170,8 +170,8 @@ class Locking implements FeatureInterface {
 	 * @return bool True if locked by another user.
 	 */
 	private function is_locked_by_another( int $post_id ): bool {
-		$lock = wp_check_post_lock( $post_id );
-		return $lock && $lock !== get_current_user_id();
+		$lock = \wp_check_post_lock( $post_id );
+		return $lock && $lock !== \get_current_user_id();
 	}
 
 	/**
@@ -181,7 +181,7 @@ class Locking implements FeatureInterface {
 	 * @return int Role weight (higher = more senior). Returns 0 for unknown roles.
 	 */
 	public function get_user_role_weight( int $user_id ): int {
-		$user = get_userdata( $user_id );
+		$user = \get_userdata( $user_id );
 
 		if ( ! $user || empty( $user->roles ) ) {
 			return 0;

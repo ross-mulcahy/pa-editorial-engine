@@ -29,16 +29,16 @@ class Syndication implements FeatureInterface {
 
 	public function init(): void {
 		// Editorial Stop: block publishing when stop is active.
-		add_filter( 'wp_insert_post_data', [ $this, 'enforce_editorial_stop' ], 10, 2 );
+		\add_filter( 'wp_insert_post_data', [ $this, 'enforce_editorial_stop' ], 10, 2 );
 
 		// Correction Flags: schedule async API call on publish.
-		add_action( 'transition_post_status', [ $this, 'handle_correction_flag' ], 10, 3 );
+		\add_action( 'transition_post_status', [ $this, 'handle_correction_flag' ], 10, 3 );
 
 		// Action Scheduler callback for sending corrections.
-		add_action( 'pa_send_correction', [ $this, 'send_correction' ] );
+		\add_action( 'pa_send_correction', [ $this, 'send_correction' ] );
 
 		// Enqueue editor sidebar components.
-		add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
+		\add_action( 'enqueue_block_editor_assets', [ $this, 'enqueue_editor_assets' ] );
 	}
 
 	/**
@@ -62,7 +62,7 @@ class Syndication implements FeatureInterface {
 			return $data;
 		}
 
-		$stop_active = get_post_meta( $post_id, '_pa_editorial_stop', true );
+		$stop_active = \get_post_meta( $post_id, '_pa_editorial_stop', true );
 
 		if ( $stop_active ) {
 			$data['post_status'] = 'pending';
@@ -85,15 +85,15 @@ class Syndication implements FeatureInterface {
 			return;
 		}
 
-		$is_correction = get_post_meta( $post->ID, '_pa_is_correction', true );
+		$is_correction = \get_post_meta( $post->ID, '_pa_is_correction', true );
 
 		if ( ! $is_correction ) {
 			return;
 		}
 
 		// Schedule async API call via Action Scheduler.
-		if ( function_exists( 'as_enqueue_async_action' ) ) {
-			as_enqueue_async_action( 'pa_send_correction', [ $post->ID ], 'pa-editorial-engine' );
+		if ( \function_exists( 'as_enqueue_async_action' ) ) {
+			\as_enqueue_async_action( 'pa_send_correction', [ $post->ID ], 'pa-editorial-engine' );
 		}
 	}
 
@@ -113,7 +113,7 @@ class Syndication implements FeatureInterface {
 	 * Enqueue editor assets for the syndication sidebar panels.
 	 */
 	public function enqueue_editor_assets(): void {
-		wp_localize_script(
+		\wp_localize_script(
 			'pa-editorial-engine-editor',
 			'paEditorialSyndication',
 			[
