@@ -41,7 +41,18 @@
 .pa-editorial-stopped {
 	pointer-events: none !important;
 	user-select: none !important;
-	opacity: 0.6;
-	border: 3px solid #cc7a00;
-	position: relative;
+	opacity: 0.5;
+}
+
+/* Keep the sidebar interactive so the stop can be toggled off. */
+.interface-interface-skeleton__sidebar.pa-editorial-stopped {
+	pointer-events: auto !important;
+	user-select: auto !important;
+	opacity: 0.8;
+}
+
+/* But lock everything in the sidebar except the Editorial Stop panel. */
+.pa-editorial-stopped .components-panel__body:not(.pa-editorial-stop-panel) {
+	pointer-events: none !important;
+	opacity: 0.5;
 }
