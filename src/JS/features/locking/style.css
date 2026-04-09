@@ -36,3 +36,12 @@
 	color: #757575;
 	font-size: 13px !important;
 }
+
+/* Editorial Stop — content freeze lockdown. */
+.pa-editorial-stopped {
+	pointer-events: none !important;
+	user-select: none !important;
+	opacity: 0.6;
+	border: 3px solid #cc7a00;
+	position: relative;
+}

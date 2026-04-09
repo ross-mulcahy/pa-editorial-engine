@@ -1,15 +1,15 @@
 /**
- * Editorial Stop — sidebar panel toggle.
+ * Editorial Stop — full content freeze.
  *
- * When active, prevents the post from being published. The server-side
- * `wp_insert_post_data` filter forces the status back to `pending`.
- * This component provides the UI toggle and error feedback.
+ * When active, the post is frozen: no content, title, or status changes
+ * are allowed. The server blocks all REST saves (except toggling the
+ * stop itself off). The client greys out the editor and shows a warning.
  */
 
 import { useEntityProp } from '@wordpress/core-data';
 import { useSelect, useDispatch } from '@wordpress/data';
 import { PluginDocumentSettingPanel } from '@wordpress/editor';
-import { ToggleControl } from '@wordpress/components';
+import { ToggleControl, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { useEffect, useRef } from '@wordpress/element';
 
@@ -20,29 +20,33 @@ export function EditorialStop() {
 	const isSavingPost = useSelect( ( select ) =>
 		select( 'core/editor' ).isSavingPost()
 	);
-	const postStatus = useSelect( ( select ) =>
-		select( 'core/editor' ).getEditedPostAttribute( 'status' )
-	);
 	const prevSaving = useRef( false );
 
-	// Show error notice when user tries to publish with stop active.
+	// Apply or remove the visual lockdown when stop state changes.
 	useEffect( () => {
-		if (
-			prevSaving.current &&
-			! isSavingPost &&
-			stopActive &&
-			postStatus === 'pending'
-		) {
+		const selectors = [ '.editor-styles-wrapper', '.editor-header' ];
+
+		selectors.forEach( ( selector ) => {
+			const el = document.querySelector( selector );
+			if ( el ) {
+				el.classList.toggle( 'pa-editorial-stopped', stopActive );
+			}
+		} );
+	}, [ stopActive ] );
+
+	// Show error notice when a save fails due to the stop.
+	useEffect( () => {
+		if ( prevSaving.current && ! isSavingPost && stopActive ) {
 			createErrorNotice(
 				__(
-					'Editorial Stop is active. This post cannot be published until the stop is removed.',
+					'Editorial Stop is active. This post has been signed off and cannot be modified.',
 					'pa-editorial-engine'
 				),
 				{ type: 'snackbar', isDismissible: true }
 			);
 		}
 		prevSaving.current = isSavingPost;
-	}, [ isSavingPost, stopActive, postStatus, createErrorNotice ] );
+	}, [ isSavingPost, stopActive, createErrorNotice ] );
 
 	const handleToggle = ( value ) => {
 		setMeta( { ...meta, _pa_editorial_stop: value } );
@@ -54,17 +58,25 @@ export function EditorialStop() {
 			title={ __( 'Editorial Stop', 'pa-editorial-engine' ) }
 			className="pa-editorial-stop-panel"
 		>
+			{ stopActive && (
+				<Notice status="warning" isDismissible={ false }>
+					{ __(
+						'This post is frozen. Content changes are blocked until the stop is removed.',
+						'pa-editorial-engine'
+					) }
+				</Notice>
+			) }
 			<ToggleControl
 				__nextHasNoMarginBottom
 				label={ __( 'Activate Editorial Stop', 'pa-editorial-engine' ) }
 				help={
 					stopActive
 						? __(
-								'This post cannot be published while the stop is active.',
+								'Post is signed off. All changes are blocked.',
 								'pa-editorial-engine'
 						  )
 						: __(
-								'Enable to prevent this post from being published.',
+								'Enable to freeze this post after sign-off.',
 								'pa-editorial-engine'
 						  )
 				}

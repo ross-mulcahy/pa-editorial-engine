@@ -9,7 +9,9 @@ namespace PA\EditorialEngine\Tests\Unit\Features\Syndication;
 
 use PA\EditorialEngine\Features\Syndication\Syndication;
 use PHPUnit\Framework\TestCase;
+use WP_Error;
 use WP_Post;
+use WP_REST_Request;
 
 class SyndicationTest extends TestCase {
 
@@ -19,10 +21,10 @@ class SyndicationTest extends TestCase {
 		parent::setUp();
 		$this->syndication = new Syndication( [ 'syndication_enabled' => true ] );
 
-		$GLOBALS['pa_test_post_meta']      = [];
-		$GLOBALS['pa_test_posts']          = [];
-		$GLOBALS['pa_test_remote_posts']   = [];
-		$GLOBALS['pa_test_async_actions']  = [];
+		$GLOBALS['pa_test_post_meta']     = [];
+		$GLOBALS['pa_test_posts']         = [];
+		$GLOBALS['pa_test_remote_posts']  = [];
+		$GLOBALS['pa_test_async_actions'] = [];
 	}
 
 	// ---------------------------------------------------------------
@@ -39,49 +41,79 @@ class SyndicationTest extends TestCase {
 	}
 
 	// ---------------------------------------------------------------
-	// enforce_editorial_stop()
+	// block_stopped_post_saves()
 	// ---------------------------------------------------------------
 
-	public function test_editorial_stop_forces_pending_on_publish(): void {
+	public function test_stop_blocks_all_saves_when_active(): void {
 		$GLOBALS['pa_test_post_meta'][42] = [ '_pa_editorial_stop' => true ];
 
-		$data    = [ 'post_status' => 'publish' ];
-		$postarr = [ 'ID' => 42 ];
+		$prepared     = new \stdClass();
+		$prepared->ID = 42;
 
-		$result = $this->syndication->enforce_editorial_stop( $data, $postarr );
+		$request = new WP_REST_Request();
+		$request->set_json_params( [ 'title' => 'Changed', 'content' => 'New content' ] );
 
-		$this->assertSame( 'pending', $result['post_status'] );
+		$result = $this->syndication->block_stopped_post_saves( $prepared, $request );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+		$this->assertSame( 'editorial_stop_active', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
 	}
 
-	public function test_editorial_stop_allows_publish_when_inactive(): void {
+	public function test_stop_allows_saves_when_inactive(): void {
 		$GLOBALS['pa_test_post_meta'][42] = [ '_pa_editorial_stop' => false ];
 
-		$data    = [ 'post_status' => 'publish' ];
-		$postarr = [ 'ID' => 42 ];
+		$prepared     = new \stdClass();
+		$prepared->ID = 42;
 
-		$result = $this->syndication->enforce_editorial_stop( $data, $postarr );
+		$request = new WP_REST_Request();
+		$request->set_json_params( [ 'title' => 'Changed' ] );
 
-		$this->assertSame( 'publish', $result['post_status'] );
+		$result = $this->syndication->block_stopped_post_saves( $prepared, $request );
+
+		$this->assertSame( $prepared, $result );
 	}
 
-	public function test_editorial_stop_ignores_non_publish_transitions(): void {
+	public function test_stop_allows_meta_only_update_to_toggle_off(): void {
 		$GLOBALS['pa_test_post_meta'][42] = [ '_pa_editorial_stop' => true ];
 
-		$data    = [ 'post_status' => 'draft' ];
-		$postarr = [ 'ID' => 42 ];
+		$prepared     = new \stdClass();
+		$prepared->ID = 42;
 
-		$result = $this->syndication->enforce_editorial_stop( $data, $postarr );
+		// Request with ONLY meta — this is how the toggle-off works.
+		$request = new WP_REST_Request();
+		$request->set_json_params( [ 'meta' => [ '_pa_editorial_stop' => false ] ] );
 
-		$this->assertSame( 'draft', $result['post_status'] );
+		$result = $this->syndication->block_stopped_post_saves( $prepared, $request );
+
+		$this->assertSame( $prepared, $result );
 	}
 
-	public function test_editorial_stop_ignores_new_posts(): void {
-		$data    = [ 'post_status' => 'publish' ];
-		$postarr = []; // No ID = new post.
+	public function test_stop_blocks_when_meta_plus_content(): void {
+		$GLOBALS['pa_test_post_meta'][42] = [ '_pa_editorial_stop' => true ];
 
-		$result = $this->syndication->enforce_editorial_stop( $data, $postarr );
+		$prepared     = new \stdClass();
+		$prepared->ID = 42;
 
-		$this->assertSame( 'publish', $result['post_status'] );
+		// Request has meta AND content — should be blocked.
+		$request = new WP_REST_Request();
+		$request->set_json_params( [ 'meta' => [ '_pa_editorial_stop' => false ], 'title' => 'Sneaky change' ] );
+
+		$result = $this->syndication->block_stopped_post_saves( $prepared, $request );
+
+		$this->assertInstanceOf( WP_Error::class, $result );
+	}
+
+	public function test_stop_ignores_new_posts(): void {
+		$prepared = new \stdClass();
+		// No ID = new post.
+
+		$request = new WP_REST_Request();
+		$request->set_json_params( [ 'title' => 'New post' ] );
+
+		$result = $this->syndication->block_stopped_post_saves( $prepared, $request );
+
+		$this->assertSame( $prepared, $result );
 	}
 
 	// ---------------------------------------------------------------

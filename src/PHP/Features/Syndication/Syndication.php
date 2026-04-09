@@ -28,8 +28,8 @@ class Syndication implements FeatureInterface {
 	}
 
 	public function init(): void {
-		// Editorial Stop: block publishing when stop is active.
-		\add_filter( 'wp_insert_post_data', [ $this, 'enforce_editorial_stop' ], 10, 2 );
+		// Editorial Stop: block ALL content changes when stop is active.
+		\add_filter( 'rest_pre_insert_post', [ $this, 'block_stopped_post_saves' ], 5, 2 );
 
 		// Correction Flags: schedule async API call on publish.
 		\add_action( 'transition_post_status', [ $this, 'handle_correction_flag' ], 10, 3 );
@@ -42,33 +42,45 @@ class Syndication implements FeatureInterface {
 	}
 
 	/**
-	 * Enforce the editorial stop — prevent publishing when the stop flag is active.
+	 * Block ALL content changes when the Editorial Stop is active.
 	 *
-	 * Hooked to `wp_insert_post_data`.
+	 * Once a sub editor activates the stop, the post is frozen — no content,
+	 * title, excerpt, or status changes are allowed via REST. The only change
+	 * permitted is toggling the stop itself off (via meta update).
 	 *
-	 * @param array<string, mixed> $data    Slashed, sanitized post data.
-	 * @param array<string, mixed> $postarr Raw post data array including meta_input.
-	 * @return array<string, mixed> Modified post data.
+	 * Hooked to `rest_pre_insert_post` at priority 5 (before locking check).
+	 *
+	 * @param \stdClass        $prepared_post The prepared post data.
+	 * @param \WP_REST_Request $request       The REST request.
+	 * @return \stdClass|\WP_Error The prepared post or an error.
 	 */
-	public function enforce_editorial_stop( array $data, array $postarr ): array {
-		$post_id = $postarr['ID'] ?? 0;
+	public function block_stopped_post_saves( \stdClass $prepared_post, \WP_REST_Request $request ): \stdClass|\WP_Error {
+		$post_id = $prepared_post->ID ?? 0;
 
 		if ( ! $post_id ) {
-			return $data;
-		}
-
-		// Only intercept when transitioning to 'publish'.
-		if ( 'publish' !== $data['post_status'] ) {
-			return $data;
+			return $prepared_post;
 		}
 
 		$stop_active = \get_post_meta( $post_id, '_pa_editorial_stop', true );
 
-		if ( $stop_active ) {
-			$data['post_status'] = 'pending';
+		if ( ! $stop_active ) {
+			return $prepared_post;
 		}
 
-		return $data;
+		// Allow the request if ONLY the meta is being updated (to toggle stop off).
+		$params = $request->get_json_params();
+		if ( $params && isset( $params['meta'] ) && \count( $params ) === 1 ) {
+			return $prepared_post;
+		}
+
+		return new \WP_Error(
+			'editorial_stop_active',
+			__(
+				'Editorial Stop is active. This post has been signed off and cannot be modified.',
+				'pa-editorial-engine'
+			),
+			[ 'status' => 403 ]
+		);
 	}
 
 	/**
