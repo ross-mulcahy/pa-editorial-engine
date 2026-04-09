@@ -1,7 +1,7 @@
 {
 	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
 	"preferredVersions": {
-		"wp": "latest",
+		"wp": "7.0-RC2",
 		"php": "8.3"
 	},
 	"features": {
