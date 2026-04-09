@@ -21,7 +21,22 @@ define( 'PA_EDITORIAL_ENGINE_VERSION', '1.0.0' );
 define( 'PA_EDITORIAL_ENGINE_PATH', plugin_dir_path( __FILE__ ) );
 define( 'PA_EDITORIAL_ENGINE_URL', plugin_dir_url( __FILE__ ) );
 
-require_once __DIR__ . '/vendor/autoload.php';
+// Use Composer autoloader if available, otherwise use built-in PSR-4 loader.
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
+} else {
+	spl_autoload_register( function ( string $class ): void {
+		$prefix = 'PA\\EditorialEngine\\';
+		if ( ! str_starts_with( $class, $prefix ) ) {
+			return;
+		}
+		$relative = substr( $class, strlen( $prefix ) );
+		$file     = __DIR__ . '/src/PHP/' . str_replace( '\\', '/', $relative ) . '.php';
+		if ( file_exists( $file ) ) {
+			require_once $file;
+		}
+	} );
+}
 
 // Activation hook must be registered at top-level scope.
 register_activation_hook( __FILE__, [ Core\FeatureManager::class, 'activate' ] );
