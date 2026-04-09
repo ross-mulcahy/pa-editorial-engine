@@ -49,7 +49,7 @@ function setEditorFrozen( frozen ) {
 				'position: fixed',
 				'inset: 0',
 				'z-index: 999999',
-				'background: rgba(255, 255, 255, 0.4)',
+				'background: transparent',
 				'cursor: not-allowed',
 			].join( '; ' );
 			iframeDoc.body.appendChild( overlay );
