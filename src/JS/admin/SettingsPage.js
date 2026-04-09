@@ -1,12 +1,13 @@
 /**
  * PA Editorial Engine — Settings page component.
  *
- * Uses @wordpress/core-data to read/write the pa_engine_settings option
- * via the WordPress REST API.
+ * Uses wp.apiFetch to read/write settings via the WordPress REST API.
+ * This avoids issues with @wordpress/core-data entity resolution that
+ * can fail in environments like WordPress Playground.
  */
 
-import { useState, useEffect } from '@wordpress/element';
-import { useEntityProp } from '@wordpress/core-data';
+import { useState, useEffect, useCallback } from '@wordpress/element';
+import apiFetch from '@wordpress/api-fetch';
 import {
 	Button,
 	Panel,
@@ -28,56 +29,52 @@ const DEFAULTS = {
 };
 
 export function SettingsPage() {
-	const [ savedSettings, setSavedSettings ] = useEntityProp(
-		'root',
-		'site',
-		'pa_engine_settings'
-	);
-
-	const [ savedTaxonomyMap, setSavedTaxonomyMap ] = useEntityProp(
-		'root',
-		'site',
-		'pa_taxonomy_map'
-	);
-
 	const [ formData, setFormData ] = useState( null );
 	const [ taxonomyMap, setTaxonomyMap ] = useState( null );
 	const [ isSaving, setIsSaving ] = useState( false );
 	const [ notice, setNotice ] = useState( null );
+	const [ loadError, setLoadError ] = useState( null );
 
-	// Initialise form data from saved settings once loaded.
+	// Load settings from REST API on mount.
 	useEffect( () => {
-		if ( savedSettings && ! formData ) {
-			setFormData( { ...DEFAULTS, ...savedSettings } );
-		}
-	}, [ savedSettings, formData ] );
+		apiFetch( { path: '/wp/v2/settings' } )
+			.then( ( settings ) => {
+				setFormData( {
+					...DEFAULTS,
+					...( settings.pa_engine_settings || {} ),
+				} );
+				setTaxonomyMap(
+					Array.isArray( settings.pa_taxonomy_map )
+						? settings.pa_taxonomy_map
+						: []
+				);
+			} )
+			.catch( ( err ) => {
+				setLoadError(
+					err.message ||
+						__( 'Failed to load settings.', 'pa-editorial-engine' )
+				);
+			} );
+	}, [] );
 
-	// Initialise taxonomy map from saved value.
-	useEffect( () => {
-		if ( savedTaxonomyMap !== undefined && taxonomyMap === null ) {
-			setTaxonomyMap(
-				Array.isArray( savedTaxonomyMap ) ? savedTaxonomyMap : []
-			);
-		}
-	}, [ savedTaxonomyMap, taxonomyMap ] );
-
-	if ( ! formData ) {
-		return <Spinner />;
-	}
-
-	const updateField = ( key, value ) => {
+	const updateField = useCallback( ( key, value ) => {
 		setFormData( ( prev ) => ( { ...prev, [ key ]: value } ) );
-	};
+	}, [] );
 
 	const handleSave = async () => {
 		setIsSaving( true );
 		setNotice( null );
 
 		try {
-			setSavedSettings( formData );
+			const payload = { pa_engine_settings: formData };
 			if ( taxonomyMap !== null ) {
-				setSavedTaxonomyMap( taxonomyMap );
+				payload.pa_taxonomy_map = taxonomyMap;
 			}
+			await apiFetch( {
+				path: '/wp/v2/settings',
+				method: 'POST',
+				data: payload,
+			} );
 			setNotice( {
 				status: 'success',
 				message: __( 'Settings saved.', 'pa-editorial-engine' ),
@@ -85,15 +82,26 @@ export function SettingsPage() {
 		} catch ( error ) {
 			setNotice( {
 				status: 'error',
-				message: __(
-					'Failed to save settings.',
-					'pa-editorial-engine'
-				),
+				message:
+					error.message ||
+					__( 'Failed to save settings.', 'pa-editorial-engine' ),
 			} );
 		} finally {
 			setIsSaving( false );
 		}
 	};
+
+	if ( loadError ) {
+		return (
+			<Notice status="error" isDismissible={ false }>
+				{ loadError }
+			</Notice>
+		);
+	}
+
+	if ( ! formData ) {
+		return <Spinner />;
+	}
 
 	const apiCredentials =
 		window.paEditorialEngine?.apiCredentialsConfigured || {};
