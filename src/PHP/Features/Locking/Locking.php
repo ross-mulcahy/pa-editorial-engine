@@ -146,12 +146,16 @@ class Locking implements FeatureInterface {
 			true
 		);
 
-		\wp_enqueue_style(
-			'pa-editorial-engine-editor',
-			PA_EDITORIAL_ENGINE_URL . 'assets/editor.css',
-			[],
-			$asset['version'] ?? PA_EDITORIAL_ENGINE_VERSION
-		);
+		// @wordpress/scripts outputs CSS as style-editor.css, not editor.css.
+		$css_file = PA_EDITORIAL_ENGINE_PATH . 'assets/style-editor.css';
+		if ( \file_exists( $css_file ) ) {
+			\wp_enqueue_style(
+				'pa-editorial-engine-editor',
+				PA_EDITORIAL_ENGINE_URL . 'assets/style-editor.css',
+				[],
+				$asset['version'] ?? PA_EDITORIAL_ENGINE_VERSION
+			);
+		}
 
 		// Pass locking config to JS.
 		\wp_localize_script(
