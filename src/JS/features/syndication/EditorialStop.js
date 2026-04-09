@@ -2,9 +2,9 @@
  * Editorial Stop — full content freeze.
  *
  * When active, the post is frozen: no content, title, or status changes
- * are allowed. The editor is made fully read-only by disabling
- * contenteditable (including inside the editor iframe), locking the
- * post save, and intercepting keyboard saves.
+ * are allowed. Uses iframe body overlay + pointer-events to block all
+ * interaction, lockPostSaving to disable the save button, and server-side
+ * REST blocking as the final safety net.
  */
 
 import { useEntityProp } from '@wordpress/core-data';
@@ -14,73 +14,75 @@ import { ToggleControl, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { useEffect, useRef } from '@wordpress/element';
 
+const OVERLAY_ID = 'pa-editorial-stop-overlay';
+
 /**
  * Get the editor iframe document (WP 7.0+ renders blocks in an iframe).
- * Falls back to the main document if no iframe is found.
  *
- * @return {Document} The document containing the editor content.
+ * @return {Document|null} The iframe document, or null if not found.
  */
-function getEditorDocument() {
+function getEditorIframeDoc() {
 	const iframe = document.querySelector( 'iframe[name="editor-canvas"]' );
-	if ( iframe?.contentDocument ) {
-		return iframe.contentDocument;
-	}
-	return document;
+	return iframe?.contentDocument || null;
 }
 
 /**
- * Disable or re-enable all contenteditable elements in the editor.
+ * Apply or remove the content freeze.
+ *
+ * Instead of toggling contenteditable on individual elements (which
+ * triggers infinite MutationObserver loops), we place a transparent
+ * overlay div over the entire iframe body that blocks all interaction.
  *
  * @param {boolean} frozen Whether the editor should be frozen.
  */
 function setEditorFrozen( frozen ) {
-	const editorDoc = getEditorDocument();
+	const iframeDoc = getEditorIframeDoc();
 
-	// Disable all contenteditable elements inside the editor (iframe or main doc).
-	const editables = editorDoc.querySelectorAll( '[contenteditable]' );
-	editables.forEach( ( el ) => {
-		if ( frozen ) {
-			el.setAttribute( 'contenteditable', 'false' );
-			el.dataset.paWasFrozen = 'true';
-		} else if ( el.dataset.paWasFrozen ) {
-			el.setAttribute( 'contenteditable', 'true' );
-			delete el.dataset.paWasFrozen;
+	if ( iframeDoc ) {
+		let overlay = iframeDoc.getElementById( OVERLAY_ID );
+
+		if ( frozen && ! overlay ) {
+			// Create a full-screen overlay inside the iframe that blocks clicks/typing.
+			overlay = iframeDoc.createElement( 'div' );
+			overlay.id = OVERLAY_ID;
+			overlay.style.cssText = [
+				'position: fixed',
+				'inset: 0',
+				'z-index: 999999',
+				'background: rgba(255, 255, 255, 0.4)',
+				'cursor: not-allowed',
+			].join( '; ' );
+			iframeDoc.body.appendChild( overlay );
+			iframeDoc.body.style.userSelect = 'none';
+		} else if ( ! frozen && overlay ) {
+			overlay.remove();
+			iframeDoc.body.style.userSelect = '';
 		}
-	} );
+	}
 
-	// Also cover the title in the parent document (may be outside iframe).
+	// Title is in the parent document — disable it directly.
 	const titleEl = document.querySelector(
 		'.editor-post-title__input, .wp-block-post-title'
 	);
 	if ( titleEl ) {
+		titleEl.style.pointerEvents = frozen ? 'none' : '';
+		titleEl.style.opacity = frozen ? '0.5' : '';
 		if ( frozen ) {
 			titleEl.setAttribute( 'contenteditable', 'false' );
-			titleEl.style.pointerEvents = 'none';
 		} else {
 			titleEl.setAttribute( 'contenteditable', 'true' );
-			titleEl.style.pointerEvents = '';
 		}
 	}
 
-	// Grey out the editor visually.
-	const lockTargets = [
-		'.editor-styles-wrapper',
-		'.editor-header',
-		'.interface-interface-skeleton__sidebar',
-	];
-	lockTargets.forEach( ( selector ) => {
-		const el = document.querySelector( selector );
-		if ( el ) {
-			el.classList.toggle( 'pa-editorial-stopped', frozen );
+	// Grey out the header and sidebar in the parent document.
+	[ '.editor-header', '.interface-interface-skeleton__sidebar' ].forEach(
+		( selector ) => {
+			const el = document.querySelector( selector );
+			if ( el ) {
+				el.classList.toggle( 'pa-editorial-stopped', frozen );
+			}
 		}
-	} );
-
-	// Also apply visual styles inside the iframe body.
-	if ( editorDoc !== document && editorDoc.body ) {
-		editorDoc.body.style.pointerEvents = frozen ? 'none' : '';
-		editorDoc.body.style.userSelect = frozen ? 'none' : '';
-		editorDoc.body.style.opacity = frozen ? '0.5' : '';
-	}
+	);
 }
 
 /**
@@ -111,19 +113,19 @@ export function EditorialStop() {
 			lockPostSaving( 'pa-editorial-stop' );
 			document.addEventListener( 'keydown', blockSave, true );
 
-			// Block keyboard input inside the iframe too.
-			const editorDoc = getEditorDocument();
-			if ( editorDoc !== document ) {
-				editorDoc.addEventListener( 'keydown', blockSave, true );
+			// Also block keyboard in the iframe.
+			const iframeDoc = getEditorIframeDoc();
+			if ( iframeDoc ) {
+				iframeDoc.addEventListener( 'keydown', blockSave, true );
 			}
 
-			// Delay to let the editor render before freezing.
-			const timer = setTimeout( () => setEditorFrozen( true ), 200 );
+			// Delay slightly to let the iframe render.
+			const timer = setTimeout( () => setEditorFrozen( true ), 300 );
 			return () => {
 				clearTimeout( timer );
 				document.removeEventListener( 'keydown', blockSave, true );
-				if ( editorDoc !== document ) {
-					editorDoc.removeEventListener( 'keydown', blockSave, true );
+				if ( iframeDoc ) {
+					iframeDoc.removeEventListener( 'keydown', blockSave, true );
 				}
 			};
 		}
@@ -132,33 +134,6 @@ export function EditorialStop() {
 		setEditorFrozen( false );
 		document.removeEventListener( 'keydown', blockSave, true );
 	}, [ stopActive, lockPostSaving, unlockPostSaving ] );
-
-	// Re-freeze when DOM changes (blocks re-rendered, undo, etc.).
-	useEffect( () => {
-		if ( ! stopActive ) {
-			return;
-		}
-
-		const editorDoc = getEditorDocument();
-		// eslint-disable-next-line no-undef -- MutationObserver is a browser global.
-		const observer = new MutationObserver( () => {
-			setEditorFrozen( true );
-		} );
-
-		const target =
-			editorDoc.querySelector( '.editor-styles-wrapper' ) ||
-			editorDoc.body;
-		if ( target ) {
-			observer.observe( target, {
-				childList: true,
-				subtree: true,
-				attributes: true,
-				attributeFilter: [ 'contenteditable' ],
-			} );
-		}
-
-		return () => observer.disconnect();
-	}, [ stopActive ] );
 
 	// Show error notice when a save fails due to the stop.
 	useEffect( () => {
